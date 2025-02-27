@@ -1,0 +1,57 @@
+A3C command
+
+python3 main.py --stock_code F --ver USA --algorithm a3c --max_episode 30 --lr 0.01 --balance 10000 --output_name F_A3C --start_date 20140101 --end_date 20181231 --workers 4 --num_step 1
+python3 main.py --stock_code AAPL --ver USA --algorithm a3c --model_version 4 --lr 0.01 --balance 10000 --output_name AAPL_A3C --start_date 20190101 --end_date 20201220 --num_step 1
+
+candlestick command
+train
+python3 main.py --stock_code F --ver USA --algorithm candle --max_episode 50 --lr 0.01 --balance 10000 --output_name F_CANDLE --start_date 20140101 --end_date 20181231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 main.py --stock_code INTC --ver USA --algorithm candle --max_episode 50 --lr 0.001 --balance 10000 --output_name INTC_CANDLE --start_date 20140101 --end_date 20181231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 main.py --stock_code WMT --ver USA --algorithm candle --max_episode 50 --lr 0.001 --balance 10000 --output_name WMT_CANDLE --start_date 20140101 --end_date 20181231 --window_size 3 --num_step 1 --start_epsilon 0.9
+python3 main.py --stock_code IBM --ver USA --algorithm candle --max_episode 50 --lr 0.001 --balance 10000 --output_name IBM_CANDLE --start_date 20140101 --end_date 20181231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 main.py --stock_code SPY --ver ETF --algorithm candle --max_episode 50 --lr 0.001 --balance 10000 --output_name SPY_CANDLE --start_date 20140101 --end_date 20181231 --window_size 3 --num_step 1 --start_epsilon 0.5
+
+test
+python3 test.py --stock_code F --ver USA --algorithm candle --model_version 49  --lr 0.01 --balance 10000 --output_name F_CANDLE --start_date 20190101 --end_date 20201231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 test.py --stock_code INTC --ver USA --algorithm candle --model_version 49  --lr 0.01 --balance 10000 --output_name INTC_CANDLE --start_date 20190101 --end_date 20201231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 test.py --stock_code WMT --ver USA --algorithm candle --model_version 49  --lr 0.01 --balance 10000 --output_name WMT_CANDLE --start_date 20190101 --end_date 20201231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 test.py --stock_code IBM --ver USA --algorithm candle --model_version 49  --lr 0.01 --balance 10000 --output_name IBM_CANDLE --start_date 20190101 --end_date 20201231 --window_size 3 --num_step 1 --start_epsilon 0.5
+python3 test.py --stock_code SPY --ver ETF --algorithm candle --model_version 49  --lr 0.01 --balance 10000 --output_name SPY_CANDLE --start_date 20190101 --end_date 20201231 --window_size 3 --num_step 1 --start_epsilon 0.9
+
+gdpg command
+train
+python3 main.py --stock_code F --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name F_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code WMT --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name WMT_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code IBM --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name IBM_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code AAPL --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name AAPL_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code INTC --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name INTC_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code SPY --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name SPY_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+python3 main.py --stock_code FB --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name FB_GDPG --start_date 20140101 --end_date 20181231 --window_size 15 --num_step 1 --noise 0.9
+
+
+test
+python3 test.py --stock_code F --ver USA --algorithm gdpg --model_version 29 --lr 0.001 --balance 10000 --output_name F_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code WMT --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name WMT_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code IBM --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name IBM_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code AAPL --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name AAPL_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code INTC --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name INTC_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code SPY --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name SPY_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+python3 test.py --stock_code FB --ver USA --algorithm gdpg --max_episode 30 --lr 0.001 --balance 10000 --output_name FB_GDPG --start_date 20190101 --end_date 20201231 --window_size 15 --num_step 1 --noise 0.9
+
+td3 command
+train
+python3 main.py --stock_code AAPL --ver USA --algorithm td3 --max_episode 30 --lr 0.001 --balance 10000 --output_name AAPL_TD3 --start_date 20140101 --end_date 20181231 --window_size 10 --num_step 1 --noise 0.9
+
+test
+python3 main.py --stock_code AAPL --ver USA --algorithm candle --reuse_model True --model_version 49 --test True --max_episode 50 --lr 0.01 --balance 10000 --output_name AAPL_GRU --start_date 20160101 --end_date 20181220 --window_size 10
+python3 test.py --stock_code FB --ver USA --algorithm td3 --max_episode 30 --lr 0.001 --balance 10000 --output_name FB_TD3 --start_date 20190101 --end_date 20201231 --window_size 10 --num_step 1 --noise 0.9
+
+
+
+gdqn command
+train
+python3 main.py --stock_code F --ver USA --algorithm gdqn --max_episode 5 --lr 0.001 --balance 10000 --output_name F_GDQN --start_date 20080101 --end_date 20181231 --window_size 10 --num_step 1
+
+test
+python3 main.py --stock_code F --ver USA --algorithm gdqn --reuse_model True --model_version 29 --test True --max_episode 50 --lr 0.01 --balance 10000 --output_name BIDU_GDQN --start_date 20190101 --end_date 20201231 --window_size 10 --num_step 1
+
