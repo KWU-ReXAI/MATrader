@@ -21,7 +21,7 @@ from utils.memory import TD3_MemoryBuffer
 class TD3_Agent:
     def __init__(self, stock_code,chart_data,training_data, delayed_reward_threshold=.05,
                 balance =10000, lr = 0.001,output_path='', reuse_model=True,value_network_path=None,
-                policy_network_path=None,load_value_network_path = None, load_policy_network_path = None, window_size = 5):
+                policy_network_path=None, load_value_network_path = None, load_policy_network_path = None, window_size = 5):
         #Initialization
         # 환경 설정
         self.chart_data = chart_data
@@ -124,9 +124,7 @@ class TD3_Agent:
             entropy_loss,actor_loss, loss, critic_loss,pv = 0, 0, 0, 0,0
             if e == (max_episode -1) : recode = 1
             self.reset()
-            self.network.target_critic1.set_weights(self.network.critic1.get_weights())
-            self.network.target_critic2.set_weights(self.network.critic2.get_weights())
-            self.network.target_actor.set_weights(self.network.actor.get_weights())
+			self.network.copy_weights
             state,done = self.environment.build_state()
             update_noise = 0.7
             while True:

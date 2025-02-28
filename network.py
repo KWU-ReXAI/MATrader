@@ -174,6 +174,20 @@ class TD3_network(nn.Module):
             )
 
     # ------------------------------
+    # 타깃 네트워크 hard update
+    # ------------------------------
+	def copy_weights(self):
+		self.hard_update(self.actor, self.target_actor, self.tau)
+        self.hard_update(self.critic1, self.target_critic1, self.tau)
+        self.hard_update(self.critic2, self.target_critic2, self.tau)
+
+	def hard_update(self, source, target, tau):
+        for target_param, param in zip(target.parameters(), source.parameters()):
+            target_param.data.copy_(
+                param.data
+            )
+
+    # ------------------------------
     # Actor 추론
     # ------------------------------
     def actor_predict(self, state):
