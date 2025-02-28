@@ -1,8 +1,6 @@
 import os
 import logging
 import numpy as np
-import tensorflow as tf
-import keras
 from tqdm import tqdm
 from collections import deque
 import threading
@@ -11,7 +9,7 @@ from trading import Trader
 from environment import Environment
 from parameters import Agent_Memory, parameters
 # from feature_network import SDAE
-import wandb
+# import wandb
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 lock = threading.Lock()
