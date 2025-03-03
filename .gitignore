@@ -1,5 +1,4 @@
 __pycache__/
-data/
 output/
-utils/
+data/
 run_tf_gpu
