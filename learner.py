@@ -71,7 +71,7 @@ class TD3_Agent:
 		n_polices = self.network.actor_target_predict(next_states)
 		n_polices = np.array(n_polices)
 		n_polices = self.plus_update_noise(n_polices,noise,self.act_dim)
-		target_q1, target_q2 = self.network.cirtic_target_predict(np.asarray(next_states),n_polices)
+		target_q1, target_q2 = self.network.critic_target_predict(np.asarray(next_states),n_polices)
 		target_q = self.bellman(rewards,target_q1,target_q2,dones,gammas)
 		# Train critic
 		#self.wandb.log({"critic_loss":critic_loss})
