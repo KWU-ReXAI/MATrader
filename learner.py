@@ -64,7 +64,7 @@ class TD3_Agent:
 		return critic_target
 
 
-	def update_models(self, iters, episode,noise):
+	def update_models(self, iters, episode, noise):
 		std_value = iters % 4 + 2
 		entropy_loss, actor_loss, critic_loss,loss = 0, 0, 0, 0
 		states, actions, imitation_actions, rewards, dones, next_states, critic_next_states, gammas,price,idx = self.buffer.sample_batch(parameters.BATCH_SIZE)
@@ -134,6 +134,7 @@ class TD3_Agent:
 				policy = self.network.actor_predict(np.array(state))
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
 				action, confidence = self.network.select_action(policy)
+
 				# print(action, policy)
 				if self.environment.next_price() == None: imitation_action = [0,0,1]
 				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
@@ -157,8 +158,8 @@ class TD3_Agent:
 						discount_reward += r_i * gamma
 						gamma *= parameters.GAMMA
 					# Add outputs to memory buffer
-					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward,done,state,state,gamma,std_price)
-					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode,update_noise)
+					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward, done, state, state, gamma, std_price)
+					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode, update_noise)
 				elif episode >parameters.N_STEP_RETURNS and len(self.n_steps_buffer) < (parameters.N_STEP_RETURNS):
 					std_state, std_policy, std_imitation_action, std_reward,std_price = self.n_steps_buffer.popleft() 
 					discount_reward = std_reward
@@ -167,8 +168,8 @@ class TD3_Agent:
 						discount_reward += r_i * gamma
 						gamma *= parameters.GAMMA
 					# Add outputs to memory buffer
-					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward,done,state,state,gamma,std_price)
-					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode,noise)
+					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward, done, state, state, gamma, std_price)
+					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode, update_noise)
 				state,done = self.environment.build_state()  
 				episode += 1
 			pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
