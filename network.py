@@ -145,8 +145,10 @@ class TD3_network(nn.Module):
 		# - price_head + LSTM + gate 파라미터는 price 업데이트
 		# - 필요에 따라 원하는 방식으로 나누어 학습할 수 있음
 		self.optimizer_a = optim.Adam(self.actor.parameters(),lr=lr)
-		self.optimizer_c1 = optim.Adam(self.critic1.parameters(), lr=lr)
-		self.optimizer_c2 = optim.Adam(self.critic2.parameters(), lr=lr)
+		self.optimizer_c = optim.Adam(
+			list(self.critic1.parameters()) + 
+			list(self.critic2.parameters()),
+			lr=lr)
 
 	# ------------------------------
 	# 타깃 네트워크 soft update
@@ -238,65 +240,65 @@ class TD3_network(nn.Module):
 
 		return loss.item()
 
-	# ------------------------------
-	# Actor 학습 (로그 손실: imitation 없이 critic으로만)
-	# ------------------------------
-	def actor_train_logloss(self, states):
-		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		policy, _ = self.actor(states_tensor)
-		q_values = self.critic1(states_tensor, policy)
-		actor_loss = -torch.mean(q_values)
+	# # ------------------------------
+	# # Actor 학습 (로그 손실: imitation 없이 critic으로만)
+	# # ------------------------------
+	# def actor_train_logloss(self, states):
+	# 	states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+	# 	policy, _ = self.actor(states_tensor)
+	# 	q_values = self.critic1(states_tensor, policy)
+	# 	actor_loss = -torch.mean(q_values)
 
-		self.optimizer_a.zero_grad()
-		actor_loss.backward()
-		# 기울기 클리핑
-		for group in self.optimizer_a.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
-		self.optimizer_a.step()
+	# 	self.optimizer_a.zero_grad()
+	# 	actor_loss.backward()
+	# 	# 기울기 클리핑
+	# 	for group in self.optimizer_a.param_groups:
+	# 		for param in group['params']:
+	# 			if param.grad is not None:
+	# 				param.grad.data.clamp_(-1.0, 1.0)
+	# 	self.optimizer_a.step()
 		
-		return actor_loss.item()
+	# 	return actor_loss.item()
 
-	# ------------------------------
-	# 모방 학습 (Behavior Cloning)
-	# ------------------------------
-	def imitative_train(self, states, imitation_action):
-		# imitation_action: one-hot (batch, act_dim)
-		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
+	# # ------------------------------
+	# # 모방 학습 (Behavior Cloning)
+	# # ------------------------------
+	# def imitative_train(self, states, imitation_action):
+	# 	# imitation_action: one-hot (batch, act_dim)
+	# 	states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+	# 	imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
 		
-		policy, _ = self.actor(states_tensor)
-		loss = -torch.mean(torch.sum(imitation_tensor * torch.log(policy + 1e-8), dim=1))
+	# 	policy, _ = self.actor(states_tensor)
+	# 	loss = -torch.mean(torch.sum(imitation_tensor * torch.log(policy + 1e-8), dim=1))
 
-		self.optimizer_a.zero_grad()
-		loss.backward()
-		for group in self.optimizer_a.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
-		self.optimizer_a.step()
+	# 	self.optimizer_a.zero_grad()
+	# 	loss.backward()
+	# 	for group in self.optimizer_a.param_groups:
+	# 		for param in group['params']:
+	# 			if param.grad is not None:
+	# 				param.grad.data.clamp_(-1.0, 1.0)
+	# 	self.optimizer_a.step()
 		
-		return loss.item()
+	# 	return loss.item()
 
-	# ------------------------------
-	# 가격 예측 학습
-	# ------------------------------
-	def price_train(self, states, realPrice):
-		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
-		realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
+	# # ------------------------------
+	# # 가격 예측 학습
+	# # ------------------------------
+	# def price_train(self, states, realPrice):
+	# 	states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+	# 	realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
+	# 	realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
 
-		_, predPrice = self.actor(states_tensor)
-		price_loss = F.mse_loss(predPrice, realPrice_tensor)
+	# 	_, predPrice = self.actor(states_tensor)
+	# 	price_loss = F.mse_loss(predPrice, realPrice_tensor)
 
-		self.optimizer_p.zero_grad()
-		price_loss.backward()
-		for group in self.optimizer_p.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
-		self.optimizer_p.step()
+	# 	self.optimizer_p.zero_grad()
+	# 	price_loss.backward()
+	# 	for group in self.optimizer_p.param_groups:
+	# 		for param in group['params']:
+	# 			if param.grad is not None:
+	# 				param.grad.data.clamp_(-1.0, 1.0)
+	# 	self.optimizer_p.step()
 
 	# ------------------------------
 	# Critic 학습 (두 Critic의 오차 중 최소값)
@@ -310,24 +312,17 @@ class TD3_network(nn.Module):
 		q_pred2 = self.critic2(states_tensor, policies_tensor)
 		loss1 = F.mse_loss(q_pred1, critic_target_tensor)
 		loss2 = F.mse_loss(q_pred2, critic_target_tensor)
-		loss = torch.min(loss1, loss2)
+		loss = loss1 + loss2
 
-		self.optimizer_c1.zero_grad()
-		self.optimizer_c2.zero_grad()
+		self.optimizer_c.zero_grad()
 
 		loss.backward()  # backward는 단 한 번
 		
-		for group in self.optimizer_c1.param_groups:
+		for group in self.optimizer_c.param_groups:
 			for param in group['params']:
 				if param.grad is not None:
 					param.grad.data.clamp_(-1.0, 1.0)
-		self.optimizer_c1.step()
-
-		for group in self.optimizer_c2.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
-		self.optimizer_c2.step()
+		self.optimizer_c.step()
 
 		return loss.item()
 
