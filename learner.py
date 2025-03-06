@@ -79,9 +79,7 @@ class TD3_Agent:
 		
 		##if t mod d then ##
 		if episode % std_value == 0:
-			actor_loss = self.network.actor_train_logloss(states)
-			self.network.price_train(states,price)
-			entropy_loss = self.network.imitative_train(states,imitation_actions)
+			actor_loss = self.network.actor_train(states, imitation_actions, price)
 			self.network.transfer_weights()
 		return entropy_loss,actor_loss, loss, critic_loss
 
