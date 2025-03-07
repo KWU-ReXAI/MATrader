@@ -79,9 +79,7 @@ class TD3_Agent:
 		
 		##if t mod d then ##
 		if episode % std_value == 0:
-			actor_loss = self.network.actor_train_logloss(states)
-			self.network.price_train(states,price)
-			entropy_loss = self.network.imitative_train(states,imitation_actions)
+			actor_loss = self.network.actor_train(states, imitation_actions, price)
 			self.network.transfer_weights()
 		return entropy_loss,actor_loss, loss, critic_loss
 
@@ -138,7 +136,7 @@ class TD3_Agent:
 				# print(action, policy)
 				if self.environment.next_price() == None: imitation_action = [0,0,1]
 				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
-				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action : [0,1,0]; 
+				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
 				if episode < reward_n_step:
 					self.trader.act(action,confidence, f, recode)

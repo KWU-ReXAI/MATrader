@@ -144,18 +144,7 @@ class TD3_network(nn.Module):
 		# - Actor 파라미터 중에서도 actor_head + LSTM + gate 파라미터는 policy 업데이트
 		# - price_head + LSTM + gate 파라미터는 price 업데이트
 		# - 필요에 따라 원하는 방식으로 나누어 학습할 수 있음
-		self.optimizer_a = optim.Adam(
-			list(self.actor.actor_head.parameters()) +
-			list(self.actor.lstm.parameters()) +
-			[self.actor.gate_weight, self.actor.gate_bias],
-			lr=lr
-		)
-		self.optimizer_p = optim.Adam(
-			list(self.actor.price_head.parameters()) +
-			list(self.actor.lstm.parameters()) +
-			[self.actor.gate_weight, self.actor.gate_bias],
-			lr=lr
-		)
+		self.optimizer_a = optim.Adam(self.actor.parameters(),lr=lr)
 		self.optimizer_c1 = optim.Adam(self.critic1.parameters(), lr=lr)
 		self.optimizer_c2 = optim.Adam(self.critic2.parameters(), lr=lr)
 
@@ -222,31 +211,32 @@ class TD3_network(nn.Module):
 	# ------------------------------
 	# Actor 학습 (정책 + 가격)
 	# ------------------------------
-	def actor_train(self, states, realPrice, critic_states):
+	def actor_train(self, states, imitation_action, realPrice):
 		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		critic_states_tensor = torch.tensor(critic_states, dtype=torch.float32, device=self.device)
+		imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
 		realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
-
-		policy, predPrice = self.actor(states_tensor)
-		# Critic1을 통해 Q-value 계산
-		q_values = self.critic1(critic_states_tensor, policy)
+		realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
 		
-		# (1) Actor Loss
+		policy, predPrice = self.actor(states_tensor)
+		q_values = self.critic1(states_tensor, policy)
 		actor_loss = -torch.mean(q_values)
-		# (2) Price Loss
+		
+		imitation_loss = F.cross_entropy(policy, imitation_tensor)
+
 		price_loss = F.mse_loss(predPrice, realPrice_tensor)
+
+		loss = actor_loss + imitation_loss + price_loss
 
 		# Actor Optimizer
 		self.optimizer_a.zero_grad()
-		actor_loss.backward(retain_graph=True)
+		loss.backward()
+		for group in self.optimizer_a.param_groups:
+			for param in group['params']:
+				if param.grad is not None:
+					param.grad.data.clamp_(-1.0, 1.0)
 		self.optimizer_a.step()
 
-		# Price Optimizer
-		self.optimizer_p.zero_grad()
-		price_loss.backward()
-		self.optimizer_p.step()
-
-		return None, actor_loss.item(), actor_loss.item()
+		return loss.item()
 
 	# ------------------------------
 	# Actor 학습 (로그 손실: imitation 없이 critic으로만)
