@@ -135,11 +135,11 @@ class Trader:
         
         prev_portfolio_value = prev_balance + self.prev_price * trading_unit
          # 즉시 보상 - 수익률
-        if action == parameters.ACTION_SELL:
-            immediate_reward = (prev_portfolio_value - curr_portfolio_value) / curr_portfolio_value
-        elif action == parameters.ACTION_HOLD: immediate_reward = 0
-        else: immediate_reward = (curr_portfolio_value - prev_portfolio_value) / prev_portfolio_value
-
+        # if action == parameters.ACTION_SELL:
+        #     immediate_reward = (prev_portfolio_value - curr_portfolio_value) / curr_portfolio_value
+        # elif action == parameters.ACTION_HOLD: immediate_reward = 0
+        # else: immediate_reward = (curr_portfolio_value - prev_portfolio_value) / prev_portfolio_value
+        immediate_reward = (curr_portfolio_value - prev_portfolio_value) / prev_portfolio_value
         return state,critic_state,policy, immediate_reward,action, self.prev_price
     
     def action_critic_memory_state(self, state, critic_state,policy, action):
