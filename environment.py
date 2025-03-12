@@ -65,12 +65,12 @@ class Environment:
         self.chart_data = chart_data
 
     def set_buy_signal(self):
-        index = self.plt_data.index[self.idx-1]
-        price = self.plt_data.iloc[self.idx-1][self.PRICE_IDX-1]
+        index = self.plt_data.index[self.idx]
+        price = self.plt_data.iloc[self.idx][self.PRICE_IDX]
         self.plt_data.at[index,'buy_signal'] = price
     def set_sell_signal(self):
-        index = self.plt_data.index[self.idx-1]
-        price = self.plt_data.iloc[self.idx-1][self.PRICE_IDX-1]
+        index = self.plt_data.index[self.idx]
+        price = self.plt_data.iloc[self.idx][self.PRICE_IDX]
         self.plt_data.at[index,'sell_signal'] = price
 
     def plt_result(self,path):
