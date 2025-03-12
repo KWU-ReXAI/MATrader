@@ -40,12 +40,11 @@ python3 test.py --stock_code FB --ver USA --algorithm gdpg --max_episode 30 --lr
 
 td3 command
 train
-python3 main.py --stock_code AAPL --ver USA --algorithm td3 --max_episode 30 --lr 0.001 --balance 10000 --output_name AAPL_TD3 --start_date 20140101 --end_date 20181231 --window_size 10 --num_step 1 --noise 0.9
+python3 main.py --stock_code AAPL --ver USA --algorithm td3 --max_episode 60 --lr 0.001 --balance 10000 --output_name AAPL_TD3 --start_date 20140101 --end_date 20181231 --window_size 10 --num_step 1 --noise 0.9
 
 test
 python3 main.py --stock_code AAPL --ver USA --algorithm candle --reuse_model True --model_version 49 --test True --max_episode 50 --lr 0.01 --balance 10000 --output_name AAPL_GRU --start_date 20160101 --end_date 20181220 --window_size 10
-python3 test_main.py --stock_code AAPL --ver USA --algorithm td3 --max_episode 30 --lr 0.001 --balance 10000 --output_name AAPL_TD3 --start_date 20190101 --end_date 20201231 --window_size 10 --num_step 1 --noise 0.9 --model_version "29"
-
+python3 test_main.py --stock_code AAPL --ver USA --algorithm td3 --max_episode 60 --lr 0.001 --balance 10000 --output_name AAPL_TD3 --start_date 20190101 --end_date 20201231 --window_size 10 --num_step 1 --noise 0.9 --model_version "59"
 
 
 gdqn command

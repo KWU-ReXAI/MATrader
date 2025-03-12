@@ -232,10 +232,7 @@ class TD3_network(nn.Module):
 		# Actor Optimizer
 		self.optimizer_a.zero_grad()
 		loss.backward()
-		for group in self.optimizer_a.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
+		nn.utils.clip_grad_value_(self.actor.parameters(), clip_value=1.0)
 		self.optimizer_a.step()
 
 		return loss.item()
@@ -318,10 +315,8 @@ class TD3_network(nn.Module):
 
 		loss.backward()  # backward는 단 한 번
 		
-		for group in self.optimizer_c.param_groups:
-			for param in group['params']:
-				if param.grad is not None:
-					param.grad.data.clamp_(-1.0, 1.0)
+		nn.utils.clip_grad_value_(self.critic1.parameters(), clip_value=1.0)
+		nn.utils.clip_grad_value_(self.critic2.parameters(), clip_value=1.0)
 		self.optimizer_c.step()
 
 		return loss.item()
