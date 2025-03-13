@@ -82,6 +82,7 @@ class Trader:
 			f.write(str(date) +"," + str(price) +"," + str(action) +","\
 					+ str(self.num_stocks) +"," + str(self.portfolio_value) + "\n")
 		'''
+		###self.environment.idx += 1
 		return action
 
 
