@@ -5,7 +5,7 @@ from tqdm import tqdm
 from collections import deque
 import threading
 import random
-from trading import Trader
+from trading_v2 import Trader
 from environment import Environment
 from parameters import Agent_Memory, parameters
 # from feature_network import SDAE
@@ -33,7 +33,7 @@ class TD3_Agent:
 		self.reuse_model = reuse_model
 		#environment setting
 		self.environment = Environment(chart_data, training_data)
-		self.trader = Trader(self.environment, balance, delayed_reward_threshold=delayed_reward_threshold)
+		self.trader = Trader(balance, delayed_reward_threshold=delayed_reward_threshold)
 		self.memory = Agent_Memory()
 		self.buffer = TD3_MemoryBuffer(parameters.REPLAY_MEM_SIZE)
 		self.n_steps_buffer = deque()
@@ -126,6 +126,11 @@ class TD3_Agent:
 			state,done = self.environment.build_state()
 			update_noise = 0.7
 			while True:
+				# 환경에서 현재 가격 얻기
+				date = self.environment.get_date()
+				curr_price = self.environment.curr_price()
+				next_price = self.environment.next_price()
+
 				prev_imitation_action = imitation_action
 				if done: break
 				# Actor picks an action (following the deterministic policy) and retrieve reward
@@ -133,18 +138,19 @@ class TD3_Agent:
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
 				action, confidence = self.network.select_action(policy)
 
-				if self.environment.next_price() == None: imitation_action = [0,0,1]
-				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
-				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action = [0,1,0]; 
+				if next_price == None: imitation_action = [0,0,1]
+				elif next_price > curr_price * (1+stock_rate): imitation_action = [1,0,0]; 
+				elif next_price < curr_price * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
 
 				if episode < reward_n_step:
-					self.trader.act(action, confidence, f, recode)
-					self.trader.action_critic_memory_state(state,state,policy,action)
+					action = self.trader.act(curr_price, action)
+					###self.trader.action_critic_memory_state(state,state,policy,action)
 					state, done = self.environment.build_state()
 					episode += 1; continue
+				
 				prev_state, prev_critic_state, prev_policy, immediate_reward, prev_action, price = self.trader.action_critic_get_reward()
-				_, pv = self.trader.act(action, confidence, f, recode)
+				action = self.trader.act(action, confidence, f, recode)
 				self.trader.action_critic_memory_state(state,state,policy,action)
 
 				self.n_steps_buffer.append((prev_state,prev_policy,prev_imitation_action,immediate_reward,price))

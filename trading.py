@@ -140,9 +140,9 @@ class Trader:
         # elif action == parameters.ACTION_HOLD: immediate_reward = 0
         # else: immediate_reward = (curr_portfolio_value - prev_portfolio_value) / prev_portfolio_value
         immediate_reward = (curr_portfolio_value - prev_portfolio_value) / prev_portfolio_value
-        return state,critic_state,policy, immediate_reward,action, self.prev_price
+        return state, critic_state, policy, immediate_reward, action, self.prev_price
     
-    def action_critic_memory_state(self, state, critic_state,policy, action):
+    def action_critic_memory_state(self, state, critic_state, policy, action):
         #print(sortino)
         self.memory.append((state,critic_state,policy,action,self.trading_unit,self.balance))
         

@@ -27,8 +27,7 @@ class Trader:
 		self.num_sell = 0
 		self.num_hold = 0
 
-	''' 
-	# learner에서 판단하도록 하자
+	# act 유효성 검사
 	def validate_action(self, action):
 		if action == parameters.ACTION_BUY:
 			# 적어도 1주를 살 수 있는지 확인
@@ -39,15 +38,12 @@ class Trader:
 			if self.num_stocks <= 0:
 				return False
 		return True
-	'''
 
-
-	def act(self, date, price, action, confidence, f, recode):
-		'''
-		# learner에서 판단
+	# 매매
+	###def act(self, date, price, action, confidence, f, recode):
+	def act(self, price, action):
 		if not self.validate_action(action):
 			action = parameters.ACTION_HOLD
-		'''
 		
 		'''
 		# 환경에서 현재 가격 얻기
@@ -81,12 +77,12 @@ class Trader:
 		# 포트폴리오 가치 갱신
 		self.portfolio_value = self.balance + price * self.num_stocks * (1- parameters.TRADING_TAX)
 
+		'''
 		if recode:
 			f.write(str(date) +"," + str(price) +"," + str(action) +","\
 					+ str(self.num_stocks) +"," + str(self.portfolio_value) + "\n")
-			
-		return sharpe_reward,portfolio_value
-	
+		'''
+		return action
 
 
 
