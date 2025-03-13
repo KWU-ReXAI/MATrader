@@ -67,7 +67,7 @@ class TD3_Agent:
 	def update_models(self, iters, episode,noise):
 		std_value = iters % 4 + 2
 		entropy_loss, actor_loss, critic_loss,loss = 0, 0, 0, 0
-		states, actions, imitation_actions, rewards, dones, next_states, critic_next_states, gammas,price,idx = self.buffer.sample_batch(parameters.BATCH_SIZE)
+		states, actions, imitation_actions, rewards, dones, next_states, _, gammas, price,_ = self.buffer.sample_batch(parameters.BATCH_SIZE)
 		n_polices = self.network.actor_target_predict(next_states)
 		n_polices = np.array(n_polices)
 		n_polices = self.plus_update_noise(n_polices,noise,self.act_dim)
@@ -114,60 +114,61 @@ class TD3_Agent:
 		tqdm_e = tqdm(range(max_episode), desc='Score', leave=True, unit=" episodes")
 		store_policy_network_path = ' '; store_ciritc_network_path = ' '
 		stock_rate = 0.001
-		delay_index = 0
 		for e in tqdm_e:
 			# Reset episode
 			imitation_action = [0,0,1]
-			episode, recode, done =0,0,False
-			entropy_loss,actor_loss, loss, critic_loss,pv = 0, 0, 0, 0,0
+			episode, recode =0,0
+			pv = 0
 			if e == (max_episode -1) : recode = 1
 			self.reset()
 			self.network.copy_weights()
-			state,done = self.environment.build_state()
+			next_state, done = self.environment.build_state() # 초기 state: next_state
 			update_noise = 0.7
 			while True:
-				prev_imitation_action = imitation_action
+				state = next_state
 				if done: break
 				# Actor picks an action (following the deterministic policy) and retrieve reward
 				policy = self.network.actor_predict(np.array(state))
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
 				action, confidence = self.network.select_action(policy)
-				# print(action, policy)
+
+				# Pick imitation action
 				if self.environment.next_price() == None: imitation_action = [0,0,1]
 				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
 				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
-				if episode < reward_n_step:
-					self.trader.act(action,confidence, f, recode)
-					self.trader.action_critic_memory_state(state,state,policy,action)
-					state, done = self.environment.build_state()
-					episode += 1; continue
-				prev_state, prev_critic_state, prev_policy, immediate_reward, prev_action,price = self.trader.action_critic_get_reward()
-				_, pv = self.trader.act(action, confidence, f, recode)
-				self.trader.action_critic_memory_state(state,state,policy,action)
 
-				self.n_steps_buffer.append((prev_state,prev_policy,prev_imitation_action,immediate_reward,price))
+				# 행동 -> reward(from trader), next_state, done(from env)
+				reward, _ = self.trader.act(action, confidence, f, recode)
+				next_state, done = self.environment.build_state() # 액션 취한 후 next_state 구하기 위함
+				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.next_price()))
+				# next_price 저장 이유: price는 actor의 price network에서 state(X일 전부터 오늘까지 가격)로부터 내일의 종가를 예측하는 모델을 만들기 위함
+				# 따라서 오늘의 가격이 아닌, 내일의 종가를 주어야 함
+
 				if len(self.n_steps_buffer) >= (parameters.N_STEP_RETURNS):
-					std_state, std_policy, std_imitation_action, std_reward,std_price = self.n_steps_buffer.popleft() 
-					discount_reward = std_reward
+					state, policy, imitation_action, reward, _, _, prev_price = self.n_steps_buffer.popleft()
+					_, _, _, _, done, next_state, price = self.n_steps_buffer[-1]
+					# done이 True이면, next_state가 None이므로 ReplayBuffer에서 뽑을 때 타입이 안 맞아서 에러남
+					# 따라서 타입을 맞추기 위해 next_state = state로 넣어줌(학습에는 쓰이지 않음)
+					# price 또한 마지막 날(done == True)에는 None이므로 에러가 나서 price = prev_price
+					# 물론 price는 마지막 날이어도 학습에 포함되므로 임시로 아래와 같이 설정, 추후 개선 예정
+					if done:
+						next_state = state
+						price = prev_price
+
+					# discount_reward = R_t+1 + r*R_t+2 + ... r^n-1 * R_t+n
+					# gamma = r^n
+					discount_reward = reward
 					gamma = parameters.GAMMA
-					for(_,_,_,r_i,_) in self.n_steps_buffer:
+					for(_,_,_,r_i,_,_,_) in self.n_steps_buffer:
 						discount_reward += r_i * gamma
 						gamma *= parameters.GAMMA
 					# Add outputs to memory buffer
-					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward,done,state,state,gamma,std_price)
-					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode,update_noise)
-				elif episode >parameters.N_STEP_RETURNS and len(self.n_steps_buffer) < (parameters.N_STEP_RETURNS):
-					std_state, std_policy, std_imitation_action, std_reward,std_price = self.n_steps_buffer.popleft() 
-					discount_reward = std_reward
-					gamma = parameters.GAMMA
-					for(_,_,_,r_i,_) in self.n_steps_buffer:
-						discount_reward += r_i * gamma
-						gamma *= parameters.GAMMA
-					# Add outputs to memory buffer
-					self.buffer.memorize(std_state, std_policy[0], std_imitation_action, std_reward,done,state,state,gamma,std_price)
-					entropy_loss,actor_loss, loss, critic_loss = self.update_models(e, episode,noise)
-				state,done = self.environment.build_state()  
+					# ReplayBuffer는 state, action, critic_state, reward, done, next_state, critic_next_state, gamma, price 가 입력
+					# critic_***는 사실 필요없으므로 critic_state 자리엔 imitation_action을, critic_next_state에는 그냥 next_state를 한번 더 넣은 것
+					# 이게 좀 더럽다 싶으면 utils/memory에서 buffer를 고치면 되지만... 일단은 이렇게 둠
+					self.buffer.memorize(state, policy[0], imitation_action, discount_reward,done,next_state,next_state,gamma,price)
+					self.update_models(e, episode,update_noise) 
 				episode += 1
 			pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
 
