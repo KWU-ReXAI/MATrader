@@ -2,8 +2,6 @@ import os
 import logging
 import numpy as np
 import math
-import tensorflow as tf
-import keras
 from tqdm import tqdm
 from collections import deque
 import threading
@@ -12,7 +10,7 @@ from trading import Trader
 from parameters import Agent_Memory, parameters
 # from feature_network import SDAE
 from environment import Environment
-import wandb
+#import wandb
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 lock = threading.Lock()
@@ -72,9 +70,6 @@ class TD3_Agent:
             policy = self.network.actor_predict(np.array(state))
             #noise_action = self.plus_noise(np.array(policy),noise,policy.shape[1])
             action, confidence = self.network.select_action(policy)
-			print("action: ", action)
-			print("confidence", confidence)
-			print()
             reward,_ = self.trader.act(action,confidence, f, 1)
             memory_reward.append(reward)
             state,done = self.environment.build_state()
@@ -83,9 +78,9 @@ class TD3_Agent:
         sr *= np.sqrt(len(self.chart_data))
         logging.info("[{}]-[{}]"
             "#Buy:{} #Sell:{} #Hold:{} "
-            "#Stocks:{} PV:{:,.0f} SR {:.5f}".format(threading.currentThread().getName(),
-                self.stock_code, self.trader.num_buy,
-                self.trader.num_sell, self.trader.num_hold, self.trader.num_stocks,pv,sr))
+            "#Stocks:{} PV:{:,.0f} SR {:.5f}".format(threading.currentThread().getName(), self.stock_code,
+				self.trader.num_buy, self.trader.num_sell, self.trader.num_hold,
+				self.trader.num_stocks,self.trader.portfolio_value,sr))
         #wandb.log({"reward":self.trader.portfolio_value, "sharpe_ratio":sharpe_ratio})
         self.environment.plt_result(plt_path)
 

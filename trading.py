@@ -83,7 +83,7 @@ class Trader:
 
 		if recode:
 			f.write(str(date) +"," + str(price) +"," + str(action) +","\
-					+ str(self.num_stocks) +"," + str(portfolio_value) + "\n")
+					+ str(self.num_stocks) +"," + str(self.portfolio_value) + "\n")
 					
 		self.environment.idx += 1
 		
