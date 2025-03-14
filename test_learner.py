@@ -73,7 +73,7 @@ class TD3_Agent:
             reward,_ = self.trader.act(action,confidence, f, 1)
             memory_reward.append(reward)
             state,done = self.environment.build_state()
-        pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
+        # pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
         sr =  np.mean(memory_reward) / (np.std(memory_reward) + 1e-10)
         sr *= np.sqrt(len(self.chart_data))
         logging.info("[{}]-[{}]"
