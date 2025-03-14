@@ -89,6 +89,7 @@ class Trader:
 		
 		return sharpe_reward, self.portfolio_value
 
+'''
 	def imitative_reward(self,action):
 		curr_portfolio_value = self.balance + self.environment.curr_price() * self.trading_unit * (1- parameters.TRADING_TAX)
 		prev_portfolio_value = self.balance + self.prev_price * self.trading_unit * (1- parameters.TRADING_TAX)
@@ -132,4 +133,4 @@ class Trader:
 	def action_critic_memory_state(self, state, critic_state,policy, action):
 		#print(sortino)
 		self.memory.append((state,critic_state,policy,action,self.trading_unit,self.balance))
-		
+'''
