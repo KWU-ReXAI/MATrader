@@ -175,16 +175,16 @@ class TD3_Agent:
 					self.buffer.memorize(state, policy[0], imitation_action, discount_reward,done,next_state,next_state,gamma,price)
 					self.update_models(e, episode,update_noise) 
 				episode += 1
-			pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
+			# pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
 
 			max_episode_digit = len(str(max_episode))
 			epoch_str = str(e + 1).rjust(max_episode_digit, '0')
 			logging.info("[{}]-[{}][Epoch {}/{}][EPSILON {:.5f}]"
 				"#Buy:{} #Sell:{} #Hold:{} "
 				"#Stocks:{} PV:{:,.0f}".format(threading.currentThread().getName(),
-					self.stock_code, epoch_str,max_episode,epsilon,self.trader.num_buy,
-					self.trader.num_sell, self.trader.num_hold, self.trader.num_stocks,
-					pv))
+					self.stock_code, epoch_str, max_episode,epsilon,
+					self.trader.num_buy, self.trader.num_sell, self.trader.num_hold,
+					self.trader.num_stocks,	self.trader.portfolio_value))
 			if recode == 1 : self.environment.plt_result(plt_path)
 			store_policy_network_path = self.policy_network_path + "_"+str(e)
 			store_ciritc_network_path = self.value_network_path + "_"+str(e)
