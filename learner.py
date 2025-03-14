@@ -117,14 +117,19 @@ class TD3_Agent:
 		for e in tqdm_e:
 			# Reset episode
 			imitation_action = [0,0,1]
-			episode, recode =0,0
+			episode, recode =0, 0
 			pv = 0
 			if e == (max_episode -1) : recode = 1
 			self.reset()
 			self.network.copy_weights()
 			next_state, done = self.environment.build_state() # 초기 state: next_state
 			update_noise = 0.7
-			while True:
+			while True:				
+				# 환경에서 가격 얻기
+				date = self.environment.get_date()
+				curr_price = self.environment.curr_price()
+				next_price = self.environment.next_price()
+
 				state = next_state
 				if done: break
 				# Actor picks an action (following the deterministic policy) and retrieve reward
@@ -133,13 +138,17 @@ class TD3_Agent:
 				action, confidence = self.network.select_action(policy)
 
 				# Pick imitation action
-				if self.environment.next_price() == None: imitation_action = [0,0,1]
-				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
-				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action = [0,1,0]; 
+				if next_price == None: imitation_action = [0,0,1]
+				elif next_price > curr_price * (1+stock_rate): imitation_action = [1,0,0]; 
+				elif next_price < curr_price * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
 
 				# 행동 -> reward(from trader), next_state, done(from env)
+				print("date: ", date)
+				print("before act price: ", self.environment.curr_price())
 				reward, _ = self.trader.act(action, confidence, f, recode)
+				print("after act price: ", self.environment.next_price())
+				print()
 				next_state, done = self.environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.next_price()))
 				# next_price 저장 이유: price는 actor의 price network에서 state(X일 전부터 오늘까지 가격)로부터 내일의 종가를 예측하는 모델을 만들기 위함
