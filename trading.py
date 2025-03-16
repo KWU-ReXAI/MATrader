@@ -59,9 +59,9 @@ class Trader:
 		if action == parameters.ACTION_BUY:
 			# 매수할 단위를 판단
 			if recode: self.environment.set_buy_signal()
-			trading_unit = self.balance // (price * (1 + parameters.TRADING_TAX))
+			trading_unit = self.balance // price
 			self.num_stocks += trading_unit  # 보유 주식 수를 갱신
-			self.balance -= (price * (1 + parameters.TRADING_TAX)) * trading_unit  # 보유 현금을 갱신
+			self.balance -= price * trading_unit  # 보유 현금을 갱신
 			self.num_buy += 1  # 매수 횟수 증가
 		# 매도
 		elif action == parameters.ACTION_SELL:
