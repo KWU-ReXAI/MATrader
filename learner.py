@@ -126,6 +126,7 @@ class TD3_Agent:
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
 				action, confidence = self.network.select_action(policy)
 
+
 				# Pick imitation action
 				if self.environment.next_price() == None: imitation_action = [0,0,1]
 				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 

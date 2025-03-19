@@ -72,9 +72,9 @@ class Trader:
         if action == parameters.ACTION_BUY:
             # 매수할 단위를 판단
             if recode: self.environment.set_buy_signal()
-            self.trading_unit = self.balance // curr_price
+            self.trading_unit = self.balance // (curr_price * (1 + parameters.TRADING_TAX))
             self.num_buy += 1  # 매수 횟수 증가
-            self.balance -= curr_price * self.trading_unit  # 보유 현금을 갱신
+            self.balance -= (curr_price * (1 + parameters.TRADING_TAX)) * self.trading_unit  # 보유 현금을 갱신
             self.num_stocks += self.trading_unit  # 보유 주식 수를 갱신
         # 매도
         elif action == parameters.ACTION_SELL:
