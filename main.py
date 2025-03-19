@@ -5,7 +5,6 @@ import argparse
 import json
 from parameters import parameters
 import data_manager
-import numpy as np
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -66,7 +65,6 @@ if __name__ == '__main__':
 
 	common_params = {}
 	from learner import TD3_Agent
-	# from learner import CANDLE_Agent, GDPG_Agent, TD3_Agent, GDQN_Agent,ATTENTION_Agent, Imitative_Agent
 	# 차트 데이터, 학습 데이터 준비
 	chart_data, training_data = data_manager.load_data(
 		os.path.join(parameters.BASE_DIR, 
@@ -85,37 +83,3 @@ if __name__ == '__main__':
 					'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
 					'window_size': args.window_size})
 		learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
-
-	# if args.algorithm == 'candle':
-	#     learner = CANDLE_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'network_path' : policy_network_path,
-	#                 'load_network_path' : load_policy_network_path, 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.start_epsilon)
-	# elif args.algorithm == 'gdpg':
-	#     learner = GDPG_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
-	#                 'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-	#                 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.start_epsilon, args.noise)
-	# elif args.algorithm == 'gdqn':
-	#     learner = GDQN_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'network_path' : policy_network_path,
-	#                 'load_network_path' : load_policy_network_path, 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.start_epsilon)
-	# elif args.algorithm == 'td3':
-	#     learner = TD3_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
-	#                 'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-	#                 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
-	# elif args.algorithm == 'attention':
-	#     learner = ATTENTION_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'network_path' : policy_network_path,
-	#                 'load_network_path' : load_policy_network_path, 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.start_epsilon)
-	# elif args.algorithm == 'irdpg':
-	#     learner = Imitative_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
-	#                 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
-	#                 'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-	#                 'window_size': args.window_size})
-	#     learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)

@@ -1,7 +1,4 @@
-# import plotly.graph_objects as go
-import tracemalloc
 import matplotlib.pyplot as plt
-import numpy as np
 
 class Environment:
     PRICE_IDX = 4  # 종가의 위치

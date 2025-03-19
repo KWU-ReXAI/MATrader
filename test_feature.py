@@ -1,13 +1,11 @@
 import talib
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-import joblib
-import pickle
 from fcmeans import FCM
 import numpy as np
 import abc
 import os
-import pickle
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "0"
 np.random.seed(42)
 class Data:
