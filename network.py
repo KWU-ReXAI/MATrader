@@ -7,9 +7,9 @@ import random
 import copy
 
 # 재현성을 위한 시드 설정
-# torch.manual_seed(42)
-# np.random.seed(42)
-# random.seed(42)
+torch.manual_seed(42)
+np.random.seed(42)
+random.seed(42)
 
 # ------------------------------
 # 1. Actor 네트워크

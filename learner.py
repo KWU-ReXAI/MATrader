@@ -139,11 +139,14 @@ class TD3_Agent:
 				else : imitation_action = [0,0,1]; 
 
 				# 행동 -> reward(from trader), next_state, done(from env)
-				reward, _ = self.trader.act(action, confidence, f, recode)
+				_, curr_pv = self.trader.act(action, confidence, f, recode)
+				if action == parameters.ACTION_SELL:
+					reward = (self.trader.prev_portfolio_value - curr_pv) / curr_pv
+				elif action == parameters.ACTION_HOLD: reward = 0
+				else: reward = (curr_pv - self.trader.prev_portfolio_value) / self.trader.prev_portfolio_value
 				next_state, done = self.environment.build_state() # 액션 취한 후 next_state 구하기 위함
-				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.next_price()))
-				# next_price 저장 이유: price는 actor의 price network에서 state(X일 전부터 오늘까지 가격)로부터 내일의 종가를 예측하는 모델을 만들기 위함
-				# 따라서 오늘의 가격이 아닌, 내일의 종가를 주어야 함
+				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.curr_price()))
+				# act에서 env.idx + 1을 했으므로 curr_price가 next_price임
 
 				if len(self.n_steps_buffer) >= (parameters.N_STEP_RETURNS):
 					state, policy, imitation_action, reward, _, _, prev_price = self.n_steps_buffer.popleft()
