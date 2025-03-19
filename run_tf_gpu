@@ -56,4 +56,3 @@ python3 main.py --stock_code F --ver USA --algorithm gdqn --max_episode 5 --lr 0
 
 test
 python3 main.py --stock_code F --ver USA --algorithm gdqn --reuse_model True --model_version 29 --test True --max_episode 50 --lr 0.01 --balance 10000 --output_name BIDU_GDQN --start_date 20190101 --end_date 20201231 --window_size 10 --num_step 1
-
