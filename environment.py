@@ -1,7 +1,4 @@
-import plotly.graph_objects as go
-import tracemalloc
 import matplotlib.pyplot as plt
-import numpy as np
 
 class Environment:
     PRICE_IDX = 4  # 종가의 위치
@@ -66,11 +63,11 @@ class Environment:
 
     def set_buy_signal(self):
         index = self.plt_data.index[self.idx]
-        price = self.plt_data.iloc[self.idx][self.PRICE_IDX]
+        price = self.plt_data.iloc[self.idx][self.PRICE_IDX-1]
         self.plt_data.at[index,'buy_signal'] = price
     def set_sell_signal(self):
         index = self.plt_data.index[self.idx]
-        price = self.plt_data.iloc[self.idx][self.PRICE_IDX]
+        price = self.plt_data.iloc[self.idx][self.PRICE_IDX-1]
         self.plt_data.at[index,'sell_signal'] = price
 
     def plt_result(self,path):

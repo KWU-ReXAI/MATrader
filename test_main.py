@@ -5,7 +5,6 @@ import argparse
 import json
 from parameters import parameters
 import test_data_manager
-import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
