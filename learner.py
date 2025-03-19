@@ -8,8 +8,6 @@ import random
 from trading import Trader
 from environment import Environment
 from parameters import Agent_Memory, parameters
-# from feature_network import SDAE
-# import wandb
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 lock = threading.Lock()
@@ -74,7 +72,6 @@ class TD3_Agent:
 		target_q1, target_q2 = self.network.critic_target_predict(np.asarray(next_states),n_polices)
 		target_q = self.bellman(rewards,target_q1,target_q2,dones,gammas)
 		# Train critic
-		#self.wandb.log({"critic_loss":critic_loss})
 		critic_loss = self.network.critic_train(states, actions, target_q)
 		
 		##if t mod d then ##
@@ -98,10 +95,8 @@ class TD3_Agent:
 			return policy
 
 	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,start_epsilon=0.3):
-		#db_name = "{}-TD3_discrete_imitation [noise {:.1f}] [window size {}] [lr {:.3f}]".format(self.stock_code,noise, self.window_size, self.lr)
 		csv_path = os.path.join(self.output_path, "_action_history_train_"+ str(reward_n_step)+".csv")
 		plt_path = os.path.join(self.output_path,"_plt_train_" + str(reward_n_step))
-		#self.wandb = wandb.init(project="TD3",name=db_name)
 		f = open(csv_path, "w"); f.write("date,price,action,num_stock,portfolio_value\n")
 
 		info = "[{code}] LR:{lr} " \
@@ -112,7 +107,6 @@ class TD3_Agent:
 		logging.info(info)
 		epsilon = start_epsilon
 		tqdm_e = tqdm(range(max_episode), desc='Score', leave=True, unit=" episodes")
-		store_policy_network_path = ' '; store_ciritc_network_path = ' '
 		stock_rate = 0.001
 		for e in tqdm_e:
 			# Reset episode
@@ -143,12 +137,17 @@ class TD3_Agent:
 				elif next_price < curr_price * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
 
-				# 행동 -> reward(from trader), next_state, done(from env)
-				reward, _ = self.trader.act(action, confidence, f, recode)
+				# 행동 -> reward, next_state, done(from env)
+				_, curr_pv = self.trader.act(action, confidence, f, recode)
+				# reward
+				if action == parameters.ACTION_SELL:
+					reward = (self.trader.prev_portfolio_value - curr_pv) / curr_pv
+				elif action == parameters.ACTION_HOLD: reward = 0
+				else: reward = (curr_pv - self.trader.prev_portfolio_value) / self.trader.prev_portfolio_value
+
 				next_state, done = self.environment.build_state() # 액션 취한 후 next_state 구하기 위함
-				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, next_price))
-				# next_price 저장 이유: price는 actor의 price network에서 state(X일 전부터 오늘까지 가격)로부터 내일의 종가를 예측하는 모델을 만들기 위함
-				# 따라서 오늘의 가격이 아닌, 내일의 종가를 주어야 함
+				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.curr_price()))
+				# act에서 env.idx + 1을 했으므로 curr_price가 next_price임
 
 				if len(self.n_steps_buffer) >= (parameters.N_STEP_RETURNS):
 					state, policy, imitation_action, reward, _, _, prev_price = self.n_steps_buffer.popleft()
