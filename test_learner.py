@@ -68,14 +68,14 @@ class TD3_Agent:
             reward,_ = self.trader.act(action,confidence, f, 1)
             memory_reward.append(reward)
             state,done = self.environment.build_state()
-        pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
+        # pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
         sr =  np.mean(memory_reward) / (np.std(memory_reward) + 1e-10)
         sr *= np.sqrt(len(self.chart_data))
         logging.info("[{}]-[{}]"
             "#Buy:{} #Sell:{} #Hold:{} "
-            "#Stocks:{} PV:{:,.0f} SR {:.5f}".format(threading.currentThread().getName(),
-                self.stock_code, self.trader.num_buy,
-                self.trader.num_sell, self.trader.num_hold, self.trader.num_stocks,pv,sr))
+            "#Stocks:{} PV:{:,.0f} SR {:.5f}".format(threading.currentThread().getName(), self.stock_code,
+				self.trader.num_buy, self.trader.num_sell, self.trader.num_hold,
+				self.trader.num_stocks,self.trader.portfolio_value,sr))
         #wandb.log({"reward":self.trader.portfolio_value, "sharpe_ratio":sharpe_ratio})
         self.environment.plt_result(plt_path)
 

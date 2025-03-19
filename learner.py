@@ -111,14 +111,19 @@ class TD3_Agent:
 		for e in tqdm_e:
 			# Reset episode
 			imitation_action = [0,0,1]
-			episode, recode =0,0
+			episode, recode =0, 0
 			pv = 0
 			if e == (max_episode -1) : recode = 1
 			self.reset()
 			self.network.copy_weights()
 			next_state, done = self.environment.build_state() # 초기 state: next_state
 			update_noise = 0.7
-			while True:
+			while True:				
+				# 환경에서 가격 얻기
+				date = self.environment.get_date()
+				curr_price = self.environment.curr_price()
+				next_price = self.environment.next_price()
+
 				state = next_state
 				if done: break
 				# Actor picks an action (following the deterministic policy) and retrieve reward
@@ -126,11 +131,10 @@ class TD3_Agent:
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
 				action, confidence = self.network.select_action(policy)
 
-
 				# Pick imitation action
-				if self.environment.next_price() == None: imitation_action = [0,0,1]
-				elif self.environment.next_price() > self.environment.curr_price() * (1+stock_rate): imitation_action = [1,0,0]; 
-				elif self.environment.next_price() < self.environment.curr_price() * (1-stock_rate): imitation_action = [0,1,0]; 
+				if next_price == None: imitation_action = [0,0,1]
+				elif next_price > curr_price * (1+stock_rate): imitation_action = [1,0,0]; 
+				elif next_price < curr_price * (1-stock_rate): imitation_action = [0,1,0]; 
 				else : imitation_action = [0,0,1]; 
 
 				# 행동 -> reward, next_state, done(from env)
@@ -170,16 +174,16 @@ class TD3_Agent:
 					self.buffer.memorize(state, policy[0], imitation_action, discount_reward,done,next_state,next_state,gamma,price)
 					self.update_models(e, episode,update_noise) 
 				episode += 1
-			pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
+			# pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
 
 			max_episode_digit = len(str(max_episode))
 			epoch_str = str(e + 1).rjust(max_episode_digit, '0')
 			logging.info("[{}]-[{}][Epoch {}/{}][EPSILON {:.5f}]"
 				"#Buy:{} #Sell:{} #Hold:{} "
 				"#Stocks:{} PV:{:,.0f}".format(threading.currentThread().getName(),
-					self.stock_code, epoch_str,max_episode,epsilon,self.trader.num_buy,
-					self.trader.num_sell, self.trader.num_hold, self.trader.num_stocks,
-					pv))
+					self.stock_code, epoch_str, max_episode,epsilon,
+					self.trader.num_buy, self.trader.num_sell, self.trader.num_hold,
+					self.trader.num_stocks,	self.trader.portfolio_value))
 			if recode == 1 : self.environment.plt_result(plt_path)
 			store_policy_network_path = self.policy_network_path + "_"+str(e)
 			store_ciritc_network_path = self.value_network_path + "_"+str(e)
