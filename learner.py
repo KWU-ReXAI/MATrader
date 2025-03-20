@@ -138,12 +138,13 @@ class TD3_Agent:
 				else : imitation_action = [0,0,1]; 
 
 				# 행동 -> reward, next_state, done(from env)
-				_, curr_pv = self.trader.act(action, confidence, f, recode)
+				buy_reward, action, sell_reward = self.trader.act(action, confidence, f, recode)
 				# reward
 				if action == parameters.ACTION_SELL:
-					reward = (self.trader.prev_portfolio_value - curr_pv) / curr_pv
-				elif action == parameters.ACTION_HOLD: reward = 0
-				else: reward = (curr_pv - self.trader.prev_portfolio_value) / self.trader.prev_portfolio_value
+					reward = sell_reward
+				elif action == parameters.ACTION_HOLD:
+					reward = 0
+				else: reward = buy_reward
 
 				next_state, done = self.environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, self.environment.curr_price()))

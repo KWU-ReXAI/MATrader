@@ -65,7 +65,7 @@ class TD3_Agent:
             policy = self.network.actor_predict(np.array(state))
             #noise_action = self.plus_noise(np.array(policy),noise,policy.shape[1])
             action, confidence = self.network.select_action(policy)
-            reward,_ = self.trader.act(action,confidence, f, 1)
+            reward,_,_ = self.trader.act(action,confidence, f, 1)
             memory_reward.append(reward)
             state,done = self.environment.build_state()
         # pv = self.trader.balance + self.trader.prev_price * self.trader.num_stocks * (1- parameters.TRADING_TAX)
