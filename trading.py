@@ -49,7 +49,7 @@ class Trader:
 
 		# 환경에서 가격 얻기
 		date = self.environment.get_date()
-		curr_price = self.environment.curr_curr_price()
+		curr_price = self.environment.curr_price()
 
 		# 즉시 보상 초기화
 		trading_unit = self.num_stocks
@@ -80,6 +80,7 @@ class Trader:
 		self.portfolio_value = self.balance + curr_price * self.num_stocks * (1- parameters.TRADING_TAX)
 		
 		sharpe_reward = (self.portfolio_value - self.prev_portfolio_value)/self.prev_portfolio_value
+		sell_reward = (self.prev_portfolio_value - self.portfolio_value)/self.portfolio_value
 
 		if recode:
 			f.write(str(date) +"," + str(curr_price) +"," + str(action) +","\
@@ -87,4 +88,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return sharpe_reward, self.portfolio_value
+		return sharpe_reward, action, sell_reward
