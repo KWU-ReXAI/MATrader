@@ -1,28 +1,53 @@
-import yfinance as yf
+from pykrx import stock
+from pykrx import bond
+import pykrx
+import FinanceDataReader as fdr
 import pandas as pd
 import os
+import time
 
-### 코스피 다운로드 ###
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 symbol_path = os.path.join(BASE_DIR + "/data/symbol.csv")
-start_date = "2009-01-01"
-end_date = "2024-12-31"
 
-# 코스피 리스트
+os.makedirs(os.path.join(BASE_DIR + "/data/ROK"), exist_ok=True)
+
+start_date = '2015-01-01'
+end_date = '2025-01-31'
+
 kospi = {}
-with open(symbol_path, 'r') as f:
-    for line in f:
-        code, name, sector = line.strip().split(',')
-        kospi[code] = name
-    del kospi["code"]
 
-for code, name in kospi.items():
-    data_path = os.path.join(BASE_DIR + "/data/ROK/{}.csv".format(name))
-            
-    # 데이터 다운로드
-    data = yf.download(code+".KS", start="2015-10-01", end="2024-3-31")
-    # 데이터 CSV로 저장
-    data.to_csv(data_path)
+symbol_df = pd.read_csv(symbol_path, encoding='utf-8-sig', dtype={'code': str})
+
+for row in symbol_df.itertuples():
+    kospi[row.code] = row.name
+    
+for ticker, name in kospi.items():
+    data_path = os.path.join(BASE_DIR + f"/data/ROK/{name}.csv")
+    
+    try:
+        df_price = stock.get_market_ohlcv_by_date(fromdate=start_date,
+                                          todate=end_date,
+                                          ticker=ticker)
+        df_price.to_csv(data_path, index=True, encoding='utf-8-sig')
+        time.sleep(0.3)  # 요청 사이 딜레이 주기
+        print(f"{ticker}:{name}의 가격 데이터를 저장했습니다.")
+    except Exception as e:
+        print(f"{ticker}:{name}의 가격 데이터를 가져오는 중 오류 발생: {e}")
+        
+for ticker, name in kospi.items():
+    data_path = os.path.join(BASE_DIR + f"/data/ROK/{name}.csv")
+    
+    try:
+        df_price = pd.read_csv(data_path)
+        adj_close = df_price["종가"]
+        df_price = df_price.drop(columns="등락률")
+        df_price.insert(5, "조정종가", adj_close)
+        df_price.columns = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
+        
+        df_price.to_csv(data_path, index=False, encoding='utf-8-sig')
+        print(f"{ticker}:{name}의 형식을 수정했습니다.")
+    except Exception as e:
+        print(f"{ticker}:{name}의 형식을 수정하는 중 오류 발생: {e}")
 
 """
 #stock = ["PG","SYY","ABT","COO","XRAY","VRTX","APA","COP","SLB"]
