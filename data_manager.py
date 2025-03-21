@@ -14,14 +14,8 @@ def load_data(fpath, fmpath,date_from, date_to, window_size=1,feature_window = 1
     feature = None
     if algorithm == 'td3':
         feature = Cluster_Data(data,date_from,date_to,window_size,fmpath,feature_window)
-    elif algorithm == 'gdpg' or algorithm =='gdqn': 
-        feature = GRU_data(data,date_from,date_to,window_size,fmpath,feature_window)
     
     chart_data = data[(data['date'] >= date_from) & (data['date'] <= date_to)]
     chart_data = chart_data.dropna()
-    if algorithm == 'irdpg':
-        start_index = len(data[(data['date'] < date_from)]) - window_size
-        end_index = len(data[(data['date'] <= date_to)])
-        training_data = data[start_index:end_index]
-    else: training_data = feature.load_data()
+    training_data = feature.load_data()
     return chart_data, training_data
