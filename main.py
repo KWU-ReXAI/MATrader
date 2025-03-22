@@ -13,8 +13,7 @@ if __name__ == '__main__':
 	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
 	parser.add_argument('--reuse_model', default=False)
 	parser.add_argument('--model_version')
-	parser.add_argument('--start_date', default='20170101')
-	parser.add_argument('--end_date', default='20171231')
+	parser.add_argument('--phase', default=None)
 	parser.add_argument('--lr', type=float, default=0.01)
 	parser.add_argument('--balance', type=int, default=10000)
 	parser.add_argument('--max_episode', type=int, default=100)
@@ -66,16 +65,18 @@ if __name__ == '__main__':
 	common_params = {}
 	from learner import TD3_Agent
 	# 차트 데이터, 학습 데이터 준비
-	chart_data, training_data = data_manager.load_data(
+	train_chart_data, test_chart_data, training_data, test_data = data_manager.load_data(
 		os.path.join(parameters.BASE_DIR, 
 		'data/{}/{}.csv'.format(args.ver, args.stock_code)), feature_model_path,
-		args.start_date, args.end_date, window_size=args.window_size, feature_window=args.feature_window, algorithm=args.algorithm)
+		(20140101, 20190101), (20181231, 20201201), window_size=args.window_size, feature_window=args.feature_window, algorithm=args.algorithm)
+
 	# 공통 파라미터 설정
 	common_params = {'delayed_reward_threshold': args.delayed_reward_threshold,
 				'balance' : args.balance}
 	# 강화학습 시작
 	common_params.update({'stock_code': args.stock_code,
-			'chart_data': chart_data, 'training_data': training_data})
+						  'train_chart_data': train_chart_data, 'test_chart_data': test_chart_data,
+						  'training_data': training_data,'test_data': test_data})
 	# f.open
 	if args.algorithm == 'td3':
 		learner = TD3_Agent(**{**common_params, 'output_path': output_path, 'lr': args.lr, 'reuse_model': args.reuse_model,
