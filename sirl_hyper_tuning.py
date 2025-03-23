@@ -125,6 +125,8 @@ sweep_config = {
     },
 }
 
+wandb.login(key="bf540955d9baf97e635e527de9a05b7e924bbf85")
+
 # 3: 스윕 시작하기
 code_list = ["SK_Innovation", "Samsung_Electronics", "NAVER_Corp", "LG_Electronics", "Hyundai_Motor"]
 
