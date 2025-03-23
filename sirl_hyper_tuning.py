@@ -12,7 +12,7 @@ import wandb
 PHASE = 4
 
 def sweep(code):
-	with wandb.init(project=f"sirl_optimizer_{code}"):
+	with wandb.init():
 		config = wandb.config
 			
 		stock_code = code
@@ -126,6 +126,8 @@ sweep_config = {
 }
 
 # 3: 스윕 시작하기
-sweep_id = wandb.sweep(sweep=sweep_config, project="my-first-sweep")
+code_list = ["SK_Innovation", "Samsung_Electronics", "NAVER_Corp", "LG_Electronics", "Hyundai_Motor"]
 
-wandb.agent(sweep_id, function=sweep, count = 100)
+for code in code_list:
+	sweep_id = wandb.sweep(sweep=sweep_config, project=f"sirl_optimizer_{code}")
+	wandb.agent(sweep_id, function=lambda: sweep(code), count=50)
