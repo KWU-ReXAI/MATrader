@@ -18,7 +18,7 @@ kospi = {}
 symbol_df = pd.read_csv(symbol_path, encoding='utf-8-sig', dtype={'code': str})
 
 for row in symbol_df.itertuples():
-    kospi[row.code] = row.name
+    kospi[row.code.zfill(6)] = row.name
     
 for ticker, name in kospi.items():
     data_path = os.path.join(BASE_DIR + f"/data/ROK/{name}.csv")
