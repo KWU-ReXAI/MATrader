@@ -9,7 +9,7 @@ import data_manager
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--stock_code', default=' ')
-	parser.add_argument('--ver', choices=['KOREA','USA','ETF'], default='USA')
+	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='USA')
 	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
 	parser.add_argument('--reuse_model', default=False)
 	parser.add_argument('--model_version')
