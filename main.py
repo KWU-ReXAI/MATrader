@@ -12,7 +12,7 @@ PHASE = 4
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--stock_code', default=' ')
-	parser.add_argument('--ver', choices=['KOREA','USA','ETF', 'ROK'], default='USA')
+	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='USA')
 	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
 	parser.add_argument('--test', default=False)
 	parser.add_argument('--model_version')
