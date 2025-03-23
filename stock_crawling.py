@@ -1,7 +1,6 @@
 from pykrx import stock
 from pykrx import bond
 import pykrx
-import FinanceDataReader as fdr
 import pandas as pd
 import os
 import time
