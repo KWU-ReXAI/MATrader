@@ -116,11 +116,11 @@ sweep_config = {
         "name": "walk_forward_score"
     },
     "parameters": {
-        "lr": {"min": 0.001, "max": 0.1},
+        "lr": {"min": 0.001, "max": 0.1, "q": 0.001, "distribution": "q_uniform"},
         "window_size": {"values": [10, 15, 20]},
         "feature_window": {"values": [10, 15, 20]},
         "num_step": {"values": [1, 2, 4, 8]},
-        "noise": {"min": 0.1, "max": 0.9},
+        "noise": {"min": 0.1, "max": 0.9, "q":0.1, "distribution": "q_uniform"},
         "max_episode": {"min": 10, "max": 30, "distribution": "int_uniform"}
     },
 }
