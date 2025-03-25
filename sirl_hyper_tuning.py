@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import sys
 import logging
 import argparse
@@ -8,6 +9,8 @@ import data_manager
 from learner import TD3_Agent
 from phase import phase2date
 import wandb
+
+load_dotenv()
 
 PHASE = 4
 
@@ -124,7 +127,7 @@ sweep_config = {
     },
 }
 
-wandb.login(key="bf540955d9baf97e635e527de9a05b7e924bbf85")
+wandb.login(key=os.environ.get("WANDB_API_KEY"))
 
 # 3: 스윕 시작하기
 code_list = ["SK_Innovation", "S_hynix","Samsung_Electronics", "NAVER_Corp", "LG_Electronics", "Hyundai_Motor"]
