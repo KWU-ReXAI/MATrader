@@ -28,7 +28,7 @@ def sweep(code):
 		workers = 1
 		window_size = config.window_size
 		feature_window = config.feature_window
-		num_step = config.num_step
+		num_step = 2
 		start_epsilon = 0.02
 		noise = config.noise
 		
@@ -119,7 +119,6 @@ sweep_config = {
         "lr": {"min": 0.001, "max": 0.1, "q": 0.001, "distribution": "q_uniform"},
         "window_size": {"values": [10, 15, 20]},
         "feature_window": {"values": [10, 15, 20]},
-        "num_step": {"values": [1, 2, 4, 8]},
         "noise": {"min": 0.1, "max": 0.9, "q":0.1, "distribution": "q_uniform"},
         "max_episode": {"min": 10, "max": 30, "distribution": "int_uniform"}
     },
@@ -128,7 +127,7 @@ sweep_config = {
 wandb.login(key="bf540955d9baf97e635e527de9a05b7e924bbf85")
 
 # 3: 스윕 시작하기
-code_list = ["SK_Innovation", "Samsung_Electronics", "NAVER_Corp", "LG_Electronics", "Hyundai_Motor"]
+code_list = ["SK_Innovation", "S_hynix","Samsung_Electronics", "NAVER_Corp", "LG_Electronics", "Hyundai_Motor"]
 
 for code in code_list:
 	sweep_id = wandb.sweep(sweep=sweep_config, project=f"sirl_optimizer_{code}")
