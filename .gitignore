@@ -4,3 +4,4 @@ data/
 run_tf_gpu
 .idea/
 .ipynb_checkpoints/
+.env

@@ -244,3 +244,5 @@ class TD3_Agent:
 															  trader.num_stocks, trader.portfolio_value,
 															  sr))
 		environment.plt_result(plt_path)
+
+		return trader.portfolio_value
