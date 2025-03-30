@@ -116,6 +116,7 @@ class TD3_Agent:
 		epsilon = start_epsilon
 		tqdm_e = tqdm(range(max_episode), desc='Score', leave=True, unit=" episodes")
 		stock_rate = 0.001
+		return_pv = 0.0
 		for e in tqdm_e:
 			# Reset episode
 			episode, recode =0, 0
@@ -194,12 +195,15 @@ class TD3_Agent:
 					self.stock_code, self.phase, epoch_str, max_episode,epsilon,
 					trader.num_buy, trader.num_sell, trader.num_hold,
 					trader.num_stocks,	trader.portfolio_value))
-			if recode == 1 : environment.plt_result(plt_path)
+			if recode == 1 :
+				environment.plt_result(plt_path)
+				return_pv = trader.portfolio_value
 			store_policy_network_path = self.policy_network_path + "_"+str(e)
 			store_critic_network_path = self.value_network_path + "_"+str(e)
 
 			print(store_policy_network_path)
 			self.network.save(store_policy_network_path,store_critic_network_path)
+		return return_pv
 
 	def backtest(self, reward_n_step=1):
 		csv_path = os.path.join(self.output_path, "td3_test_action_history_" + str(reward_n_step) + ".csv")

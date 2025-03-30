@@ -98,8 +98,7 @@ def sweep(code):
 							'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
 							'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
 							'window_size': window_size})
-				learner.run(max_episode, num_step, noise,start_epsilon)
-				pv = learner.backtest(num_step)
+				pv = learner.run(max_episode, num_step, noise,start_epsilon)
 				all_pv_per_phase.append(pv)
 			avg_pv_per_phase = sum(all_pv_per_phase) / len(all_pv_per_phase)
 			
