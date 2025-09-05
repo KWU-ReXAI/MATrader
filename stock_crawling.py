@@ -11,7 +11,7 @@ symbol_path = os.path.join(BASE_DIR + "/data/symbol.csv")
 os.makedirs(os.path.join(BASE_DIR + "/data/ROK"), exist_ok=True)
 
 start_date = '2015-01-01'
-end_date = '2025-01-31'
+end_date = '2025-04-15'
 
 kospi = {}
 
@@ -21,7 +21,7 @@ for row in symbol_df.itertuples():
     kospi[row.code.zfill(6)] = row.name
     
 for ticker, name in kospi.items():
-    data_path = os.path.join(BASE_DIR + f"/data/ROK/{name}.csv")
+    data_path = os.path.join(BASE_DIR + f"/data/ROK/{ticker}.csv")
     
     try:
         df_price = stock.get_market_ohlcv_by_date(fromdate=start_date,
@@ -34,7 +34,7 @@ for ticker, name in kospi.items():
         print(f"{ticker}:{name}의 가격 데이터를 가져오는 중 오류 발생: {e}")
         
 for ticker, name in kospi.items():
-    data_path = os.path.join(BASE_DIR + f"/data/ROK/{name}.csv")
+    data_path = os.path.join(BASE_DIR + f"/data/ROK/{ticker}.csv")
     
     try:
         df_price = pd.read_csv(data_path)
