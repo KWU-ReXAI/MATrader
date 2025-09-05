@@ -80,6 +80,7 @@ if __name__ == '__main__':
 					'balance' : args.balance}
 		# 강화학습 시작
 		common_params.update({'stock_code': stock_codes,
+							  'num_of_stock': len(args.stock_codes),
 							  'train_chart_data': train_chart_data, 'test_chart_data': test_chart_data,
 							  'training_data': training_data,'test_data': test_data})
 		# f.open
