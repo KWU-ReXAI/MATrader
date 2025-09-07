@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 import random
 import copy
+from parameters import parameters
 
 # 재현성을 위한 시드 설정
 torch.manual_seed(42)
@@ -38,14 +39,14 @@ class Actor(nn.Module):
 			nn.Linear(units, units),
 			nn.ReLU(),
 			nn.Linear(units, act_dim),
-			nn.Softmax(dim=-1)
+			nn.Tanh()
 		)
 		
 		# (B) Price Head: 은닉층 + 1차원 회귀 출력
 		self.price_head = nn.Sequential(
 			nn.Linear(units, units),
 			nn.ReLU(),
-			nn.Linear(units, 1)
+			nn.Linear(units, act_dim) # 예측해야 하는 가격이 여러개
 		)
 		
 	def forward(self, x):
@@ -59,7 +60,7 @@ class Actor(nn.Module):
 		lstm_out = lstm_out[:, -1, :]      # (batch, units)
 		
 		# 두 개의 헤드
-		policy = self.actor_head(lstm_out)   # (batch, act_dim)
+		policy = self.actor_head(lstm_out) * parameters.NUM_ACTIONS   # (batch, act_dim), -1~1에서 -3~3으로 범위 변화
 		price = self.price_head(lstm_out)    # (batch, 1)
 		
 		return policy, price
@@ -217,7 +218,7 @@ class TD3_network(nn.Module):
 		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
 		imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
 		realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
-		realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
+		# realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
 		
 		policy, predPrice = self.actor(states_tensor)
 		q_values = self.critic1(states_tensor, policy)
@@ -264,13 +265,13 @@ class TD3_network(nn.Module):
 	# ------------------------------
 	# 액션 선택 (argmax)
 	# ------------------------------
-	def select_action(self, probs):
-		# probs: (1, act_dim)
-		action_probs = np.array(probs)
-		pred = action_probs[0]
-		action = np.argmax(pred)
-		confidence = pred[action]
-		return action, confidence
+	# def select_action(self, probs):
+	# 	# probs: (1, act_dim)
+	# 	action_probs = np.array(probs)
+	# 	pred = action_probs[0]
+	# 	action = np.argmax(pred)
+	# 	confidence = pred[action]
+	# 	return action, confidence
 
 	# ------------------------------
 	# 모델 저장/불러오기

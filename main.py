@@ -3,6 +3,7 @@ import sys
 import logging
 import argparse
 import json
+import datetime
 from parameters import parameters
 import data_manager
 from learner import TD3_Agent
@@ -25,13 +26,13 @@ if __name__ == '__main__':
 	parser.add_argument('--feature_window', type=int, default=1)
 	parser.add_argument('--num_step', type=int, default=1)
 	parser.add_argument('--start_epsilon', type=float, default=0.02)
-	parser.add_argument('--noise', type=float, default=0.3)
+	parser.add_argument('--noise', type=float, default=0.7)
 	args = parser.parse_args()
 
-	# 출력 경로 설정
-	stock_codes = '_'.join(args.stock_codes)
+	# 출력 경로 설정-> 결과 폴더명: 현재 시각(년/월/일/시/분/초)
+	timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 	output_path = os.path.join(parameters.BASE_DIR,
-		'output/{}'.format(stock_codes))
+		'output/{}'.format(timestamp))
 	if not os.path.isdir(output_path): os.makedirs(output_path)
 
 	# 파라미터 기록
@@ -39,8 +40,9 @@ if __name__ == '__main__':
 		f.write(json.dumps(vars(args)))
 
 	# 로그 기록 설정
+	logging.getLogger('matplotlib').setLevel(logging.WARNING)
 	file_handler = logging.FileHandler(filename=os.path.join(
-		output_path, "{}.log".format(stock_codes)), encoding='utf-8')
+		output_path, "{}.log".format(timestamp)), encoding='utf-8')
 	stream_handler = logging.StreamHandler(sys.stdout)
 	file_handler.setLevel(logging.DEBUG)
 	stream_handler.setLevel(logging.INFO)
@@ -79,7 +81,7 @@ if __name__ == '__main__':
 		common_params = {'delayed_reward_threshold': args.delayed_reward_threshold,
 					'balance' : args.balance}
 		# 강화학습 시작
-		common_params.update({'stock_code': stock_codes,
+		common_params.update({'stock_codes': args.stock_codes,
 							  'num_of_stock': len(args.stock_codes),
 							  'train_chart_data': train_chart_data, 'test_chart_data': test_chart_data,
 							  'training_data': training_data,'test_data': test_data})
