@@ -1,6 +1,6 @@
 __pycache__/
 output/
-data/
+data/ROK
 run_tf_gpu
 .idea/
 .ipynb_checkpoints/
