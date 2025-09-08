@@ -1,5 +1,6 @@
 import os
 import logging
+import itertools
 import numpy as np
 from tqdm import tqdm
 from collections import deque
@@ -17,7 +18,7 @@ np.random.seed(42)
 from network import TD3_network
 from utils.memory import TD3_MemoryBuffer
 class TD3_Agent:
-	def __init__(self, stock_code, phase, train_chart_data,test_chart_data, training_data, test_data,
+	def __init__(self, stock_codes:list, num_of_stock, phase, train_chart_data,test_chart_data, training_data, test_data,
 				delayed_reward_threshold=.05, balance =10000, lr = 0.001,output_path='', test=False,
 				value_network_path=None, policy_network_path=None, load_value_network_path = None, load_policy_network_path = None,
 				window_size = 5):
@@ -29,7 +30,7 @@ class TD3_Agent:
 		self.test_data = test_data
 
 		# paths and stock code
-		self.stock_code = stock_code
+		self.stock_codes = stock_codes
 		self.policy_network_path = policy_network_path
 		self.value_network_path = value_network_path
 
@@ -40,7 +41,7 @@ class TD3_Agent:
 		# parameters
 		self.window_size = window_size
 		self.test = test
-		self.act_dim = parameters.NUM_ACTIONS
+		self.act_dim = num_of_stock
 		self.inp_dim = self.training_data.shape[2] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
@@ -87,6 +88,7 @@ class TD3_Agent:
 			for i in range(act_size):
 				noise = np.random.normal(0,exploration_noise,1)
 				policy[index][i] += noise
+				policy[index][i] = np.clip(policy[index][i],-1.0 * parameters.NUM_ACTIONS,1.0 * parameters.NUM_ACTIONS)
 			return policy
 	def plus_update_noise(self,policy,exploration_noise,act_size):
 		for index in range(len(policy)):
@@ -94,21 +96,22 @@ class TD3_Agent:
 				noise = np.random.normal(0,exploration_noise,1)
 				noise = np.clip(noise,-1,1)
 				policy[index][i] += noise
+				policy[index][i] = np.clip(policy[index][i], -1.0 * parameters.NUM_ACTIONS, 1.0 * parameters.NUM_ACTIONS)
 			return policy
 
 	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,start_epsilon=0.3):
 		# path setting
 		csv_path = os.path.join(self.output_path, "_action_history_train_"+ str(reward_n_step)+".csv")
 		plt_path = os.path.join(self.output_path,"_plt_train_" + str(reward_n_step))
-		f = open(csv_path, "w"); f.write("date,price,action,num_stock,portfolio_value\n")
+		f = open(csv_path, "w"); f.write("date,stock,price,action,num_stock,portfolio_value\n")
 
 		# environment setting
 		environment = Environment(self.train_chart_data, self.training_data)
-		trader = Trader(environment, self.balance, delayed_reward_threshold=self.delayed_reward_threshold)
+		trader = Trader(environment, self.balance, self.act_dim, delayed_reward_threshold=self.delayed_reward_threshold)
 
 		info = "[{code} - phase_{phase}] LR:{lr} " \
 			"DRT:{delayed_reward_threshold}".format(
-			code=self.stock_code, lr=self.lr,
+			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
 			phase=self.phase
 		)
@@ -132,30 +135,27 @@ class TD3_Agent:
 			update_noise = 0.7
 			while True:				
 				# 환경에서 가격 얻기
-				curr_price = environment.curr_price()
-				next_price = environment.next_price()
+				curr_prices = environment.curr_price()
+				next_prices = environment.next_price()
 
 				state = next_state
 				if done: break
 				# Actor picks an action (following the deterministic policy) and retrieve reward
 				policy = self.network.actor_predict(np.array(state))
 				policy = self.plus_noise(np.array(policy),noise,policy.shape[1])
-				action, confidence = self.network.select_action(policy)
+				action = policy[0]
 
 				# Pick imitation action
-				if next_price is None: imitation_action = [0,0,1]
-				elif next_price > curr_price * (1+stock_rate): imitation_action = [1,0,0]; 
-				elif next_price < curr_price * (1-stock_rate): imitation_action = [0,1,0]; 
-				else : imitation_action = [0,0,1]; 
+				# 매매 타입 3개일 때만 적용 가능!
+				imitation_action = np.zeros(self.act_dim)
+				for stock, curr_price in enumerate(curr_prices):
+					if next_prices is None: imitation_action[stock] = 0 # 홀딩
+					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock] = -2 # 매수
+					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock] = 2 # 매도
+					else : imitation_action[stock] = 0
 
-				# 행동 -> reward, next_state, done(from env)
-				buy_reward, action, sell_reward = trader.act(action, confidence, f, recode)
-				# reward
-				if action == parameters.ACTION_SELL:
-					reward = sell_reward
-				elif action == parameters.ACTION_HOLD:
-					reward = 0
-				else: reward = buy_reward
+				# 행동 -> reward(from trading), next_state, done(from env)
+				reward = trader.act(action, self.stock_codes, f, recode)
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, environment.curr_price()))
@@ -192,11 +192,11 @@ class TD3_Agent:
 			logging.info("[{}]-[{} - phase_{}][Epoch {}/{}][EPSILON {:.5f}]"
 				"#Buy:{} #Sell:{} #Hold:{} "
 				"#Stocks:{} PV:{:,.0f}".format(threading.currentThread().getName(),
-					self.stock_code, self.phase, epoch_str, max_episode,epsilon,
+					'_'.join(self.stock_codes), self.phase, epoch_str, max_episode,epsilon,
 					trader.num_buy, trader.num_sell, trader.num_hold,
 					trader.num_stocks,	trader.portfolio_value))
 			if recode == 1 :
-				environment.plt_result(plt_path)
+				environment.plt_result(plt_path, self.stock_codes)
 				return_pv = trader.portfolio_value
 			store_policy_network_path = self.policy_network_path + "_"+str(e)
 			store_critic_network_path = self.value_network_path + "_"+str(e)
@@ -209,11 +209,11 @@ class TD3_Agent:
 		csv_path = os.path.join(self.output_path, "td3_test_action_history_" + str(reward_n_step) + ".csv")
 		plt_path = os.path.join(self.output_path, "td3_test_plt_" + str(reward_n_step))
 		f = open(csv_path, "w")
-		f.write("date,price,action,num_stock,portfolio_value\n")
+		f.write("date,stock,price,action,num_stock,portfolio_value\n")
 
 		info = "[{code} - phase_{phase}] LR:{lr} " \
 			   "DRT:{delayed_reward_threshold}".format(
-			code=self.stock_code, lr=self.lr,
+			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
 			phase = self.phase
 		)
@@ -221,32 +221,34 @@ class TD3_Agent:
 
 		# environment setting
 		environment = Environment(self.test_chart_data, self.test_data)
-		trader = Trader(environment, self.balance, delayed_reward_threshold=self.delayed_reward_threshold)
+		trader = Trader(environment, self.balance, self.act_dim, delayed_reward_threshold=self.delayed_reward_threshold)
 
 		# reset
 		environment.reset()
 		trader.reset()
 
-		memory_reward = []
+		memory_pv = []; memory_reward = []
 		state, done = environment.build_state()
 		while True:
 			if done: break
 			# Actor picks an action (following the deterministic policy) and retrieve reward
 			policy = self.network.actor_predict(np.array(state))
-			# noise_action = self.plus_noise(np.array(policy),noise,policy.shape[1])
-			action, confidence = self.network.select_action(policy)
-			reward, _, _ = trader.act(action, confidence, f, 1)
+			action= policy[0]
+			reward = trader.act(action, self.stock_codes, f, 1)
 			memory_reward.append(reward)
+			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
-		sr = np.mean(memory_reward) / (np.std(memory_reward) + 1e-10)
-		sr *= np.sqrt(len(self.test_chart_data))
+		# Sharpe Ratio
+		sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward))/ (np.std(memory_reward) + 1e-10)
+		mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
+												in zip(itertools.accumulate(memory_pv, max), memory_pv))
 		logging.info("[{}]-[{} - phase_{}]"
 					 "#Buy:{} #Sell:{} #Hold:{} "
-					 "#Stocks:{} PV:{:,.0f} SR {:.5f}".format(threading.currentThread().getName(), self.stock_code,
+					 "#Stocks:{} PV:{:,.0f} SR {:.2f} MDD {:.2f}".format(threading.currentThread().getName(), '_'.join(self.stock_codes),
 															  self.phase, trader.num_buy, trader.num_sell,
 															  trader.num_hold,
 															  trader.num_stocks, trader.portfolio_value,
-															  sr))
-		environment.plt_result(plt_path)
+															  sr, mdd))
+		environment.plt_result(plt_path, self.stock_codes)
 
 		return trader.portfolio_value
