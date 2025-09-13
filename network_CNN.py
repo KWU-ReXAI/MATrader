@@ -20,7 +20,7 @@ random.seed(42)
 #    (2) Price Head (회귀) 두 가지 출력을 모두 계산
 # ------------------------------
 class Actor(nn.Module):
-	def __init__(self, inp_dim, act_dim, window_size, units):
+	def __init__(self, inp_dim, act_dim, window_size, units, num_stocks):
 		super(Actor, self).__init__()
 		self.inp_dim = inp_dim
 		self.act_dim = act_dim
@@ -30,9 +30,18 @@ class Actor(nn.Module):
 		# Actor 전용 gate 파라미터
 		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
 		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
-		
-		# LSTM layer (batch_first=True로 입력 shape을 (batch, seq, feature)로 가정)
-		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
+
+		self.cnn_layer = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(3, 3), padding=1),
+			nn.ReLU(),
+			nn.MaxPool2d(kernel_size=(2, 2))
+			# 필요에 따라 Conv, Pool 레이어 추가
+		)
+
+		cnn_output_size = self._get_cnn_output_size(window_size, num_stocks, inp_dim)
+
+		self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=units, batch_first=True)
+
 		
 		# (A) Policy Head: 은닉층 + softmax 출력
 		self.actor_head = nn.Sequential(
@@ -48,21 +57,46 @@ class Actor(nn.Module):
 			nn.ReLU(),
 			nn.Linear(units, act_dim) # 예측해야 하는 가격이 여러개
 		)
-		
+
+	def _get_cnn_output_size(self, window_size, num_stocks, inp_dim):
+		with torch.no_grad():
+			# 배치 크기는 1로 고정하여 더미 입력을 생성
+			dummy_input = torch.zeros(1, 1, num_stocks, inp_dim)
+			output = self.cnn_layer(dummy_input)
+			# output.view(1, -1)는 배치 차원을 제외한 나머지를 모두 flatten
+			# .size(1)은 flatten된 피처의 개수를 가져옴
+			return output.view(1, -1).size(1)
+
 	def forward(self, x):
-		# x: (batch, window_size, inp_dim) 1 10 78
+		# x: (batch, window_size, inp_dim) 1 10 3 26
 		# Gate 계산
-		gate = torch.sigmoid(self.gate_weight * x + self.gate_bias)
-		weighted = gate * x
-		
-		# LSTM: 마지막 타임스텝 hidden state 사용
-		lstm_out, _ = self.lstm(weighted)  # (batch, window_size, units)
-		lstm_out = lstm_out[:, -1, :]      # (batch, units)
-		
-		# 두 개의 헤드
-		policy = self.actor_head(lstm_out) * parameters.NUM_ACTIONS   # (batch, act_dim), -1~1에서 -3~3으로 범위 변화
-		price = self.price_head(lstm_out)    # (batch, 1)
-		
+		# x의 현재 shape: (batch, window_size, num_stocks, inp_dim)
+		batch_size, window, _, _ = x.shape # 1, 10
+
+		# LSTM에 넣기 전, 각 타임스텝의 (num_stocks, inp_dim)을 CNN으로 처리
+		# (batch, window, stocks, features) -> (batch * window, stocks, features)
+		cnn_in = x.view(batch_size * window, x.size(2), x.size(3)) # 10 3 26
+		# (batch * window, stocks, features) -> (batch * window, 1, stocks, features) 채널 차원 추가
+		cnn_in = cnn_in.unsqueeze(1) # 10 1 3 26
+
+		# CNN 통과
+		cnn_out = self.cnn_layer(cnn_in) # 10 16 1 13
+
+		# CNN 출력을 Flatten
+		# (batch * window, C, H, W) -> (batch * window, C*H*W)
+		flattened = cnn_out.view(cnn_out.size(0), -1) # 10 208
+
+		# LSTM 입력을 위해 window 차원 복원
+		# (batch * window, C*H*W) -> (batch, window, C*H*W)
+		lstm_in = flattened.view(batch_size, window, -1) # 1 10 208
+
+		# 이후는 기존과 동일
+		lstm_out, _ = self.lstm(lstm_in) # 1 10 128
+		lstm_out = lstm_out[:, -1, :] # 1 128
+
+		policy = self.actor_head(lstm_out) * parameters.NUM_ACTIONS
+		price = self.price_head(lstm_out)
+
 		return policy, price
 
 # ------------------------------
@@ -70,46 +104,91 @@ class Actor(nn.Module):
 #  - gate_weight, gate_bias를 이용해 상태(state)에 대한 게이트 적용
 #  - LSTM으로 상태 인코딩 후, 액션(action)과 결합해 Q-value 예측
 # ------------------------------
+# network.py
+
 class Critic(nn.Module):
-	def __init__(self, inp_dim, act_dim, window_size, units):
+	def __init__(self, inp_dim, act_dim, window_size, num_stocks, units):
 		super(Critic, self).__init__()
 		self.inp_dim = inp_dim
 		self.act_dim = act_dim
 		self.window_size = window_size
 		self.units = units
-		
-		# Critic 전용 gate 파라미터
-		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
-		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
-		
-		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
+
+		# 1. CNN 레이어 정의 (Actor와 동일한 구조 사용)
+		self.cnn_layer = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(3, 3), padding=1),
+			nn.ReLU(),
+			nn.MaxPool2d(kernel_size=(2, 2))
+		)
+
+		# 2. CNN 출력 크기 계산
+		cnn_output_size = self._get_cnn_output_size(window_size, num_stocks, inp_dim)
+
+		# 3. LSTM 레이어 정의 (입력 크기는 CNN 출력 크기)
+		self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=units, batch_first=True)
+
+		# 4. State 처리용 FC 레이어
 		self.state_fc = nn.Sequential(
 			nn.Linear(units, units),
 			nn.ReLU()
 		)
+
+		# 5. Action 처리용 FC 레이어
 		self.action_fc = nn.Sequential(
 			nn.Linear(act_dim, units),
 			nn.ReLU()
 		)
+
+		# 6. State와 Action을 결합하여 Q-value를 출력하는 최종 FC 레이어
 		self.fc = nn.Sequential(
 			nn.Linear(units * 2, units),
 			nn.ReLU(),
 			nn.Linear(units, 1),
 			nn.Sigmoid()
 		)
-		
+
+	# CNN 출력 크기를 동적으로 계산하기 위한 헬퍼 함수
+	def _get_cnn_output_size(self, window_size, num_stocks, inp_dim):
+		with torch.no_grad():
+			# 배치 크기는 1로 고정하여 더미 입력을 생성
+			dummy_input = torch.zeros(1, 1, num_stocks, inp_dim)
+			output = self.cnn_layer(dummy_input)
+			# output.view(1, -1)는 배치 차원을 제외한 나머지를 모두 flatten
+			# .size(1)은 flatten된 피처의 개수를 가져옴
+			return output.view(1, -1).size(1)
+
 	def forward(self, state, action):
-		# state: (batch, window_size, inp_dim), action: (batch, act_dim)
-		gate = torch.sigmoid(self.gate_weight * state + self.gate_bias)
-		weighted = gate * state
-		
-		lstm_out, _ = self.lstm(weighted)   # (batch, window_size, units)
-		lstm_out = lstm_out[:, -1, :]       # (batch, units)
-		
+		# state shape: (batch, window_size, num_stocks, inp_dim) 1 10 3 26
+		# action shape: (batch, act_dim)
+		batch_size, window, _, _ = state.shape
+
+		# LSTM에 넣기 전, 각 타임스텝의 (num_stocks, inp_dim)을 CNN으로 처리
+		# (batch, window, stocks, features) -> (batch * window, stocks, features)
+		cnn_in = state.view(batch_size * window, state.size(2), state.size(3))
+		# (batch * window, stocks, features) -> (batch * window, 1, stocks, features) 채널 차원 추가
+		cnn_in = cnn_in.unsqueeze(1) # 10 3 26
+
+		# CNN 통과
+		cnn_out = self.cnn_layer(cnn_in) # 10 16 1 13
+
+		# CNN 출력을 Flatten
+		# (batch * window, C, H, W) -> (batch * window, C*H*W)
+		flattened = cnn_out.view(cnn_out.size(0), -1) # 10 208
+
+		# LSTM 입력을 위해 window 차원 복원
+		# (batch * window, C*H*W) -> (batch, window, C*H*W)
+		lstm_in = flattened.view(batch_size, window, -1) # 1 10 208
+
+		# LSTM 통과 후 마지막 타임스텝의 은닉 상태 사용
+		lstm_out, _ = self.lstm(lstm_in) # 1 10 128
+		lstm_out = lstm_out[:, -1, :] # 1 128
+
+		# State와 Action 결합
 		s_layer = self.state_fc(lstm_out)
 		a_layer = self.action_fc(action)
 		concat = torch.cat([s_layer, a_layer], dim=1)
-		out = self.fc(concat)  # (batch, 1)
+		out = self.fc(concat)
+
 		return out
 
 # ------------------------------
@@ -119,7 +198,7 @@ class Critic(nn.Module):
 #  - Soft Update, Optimizer, 학습 로직 등
 # ------------------------------
 class TD3_network(nn.Module):
-	def __init__(self, inp_dim, act_dim, lr, tau, window_size):
+	def __init__(self, inp_dim, act_dim, lr, tau, window_size, num_of_stock):
 		super(TD3_network, self).__init__()
 		self.inp_dim = inp_dim
 		self.act_dim = act_dim
@@ -132,12 +211,12 @@ class TD3_network(nn.Module):
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 		# (1) Actor & Target Actor
-		self.actor = Actor(inp_dim, act_dim, window_size, self.units).to(self.device)
+		self.actor = Actor(inp_dim, act_dim, window_size, self.units, num_of_stock).to(self.device)
 		self.target_actor = copy.deepcopy(self.actor).to(self.device)
 
 		# (2) Critic1, Critic2 & Target Critic1, Critic2
-		self.critic1 = Critic(inp_dim, act_dim, window_size, self.units).to(self.device)
-		self.critic2 = Critic(inp_dim, act_dim, window_size, self.units).to(self.device)
+		self.critic1 = Critic(inp_dim, act_dim, window_size, num_of_stock, self.units).to(self.device)
+		self.critic2 = Critic(inp_dim, act_dim, window_size, num_of_stock, self.units).to(self.device)
 		self.target_critic1 = copy.deepcopy(self.critic1).to(self.device)
 		self.target_critic2 = copy.deepcopy(self.critic2).to(self.device)
 
@@ -186,7 +265,7 @@ class TD3_network(nn.Module):
 		# state는 (window_size, inp_dim) 또는 (batch, window_size, inp_dim)라고 가정
 		if isinstance(state, np.ndarray):
 			state = torch.tensor(state, dtype=torch.float32, device=self.device)
-		if state.dim() == 2:
+		if state.dim() == 3:
 			state = state.unsqueeze(0)
 		policy, _ = self.actor(state)
 		return policy.detach().cpu().numpy()
@@ -194,7 +273,7 @@ class TD3_network(nn.Module):
 	def actor_target_predict(self, states):
 		if isinstance(states, np.ndarray):
 			states = torch.tensor(states, dtype=torch.float32, device=self.device)
-		if states.dim() == 2:
+		if states.dim() == 3:
 			states = states.unsqueeze(0)
 		policy, _ = self.target_actor(states)
 		return policy.detach().cpu().numpy()

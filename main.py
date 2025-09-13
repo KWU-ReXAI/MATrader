@@ -16,6 +16,7 @@ if __name__ == '__main__':
 	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='ROK')
 	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
 	parser.add_argument('--test', default=False)
+	parser.add_argument('--model_dir', default=' ')
 	parser.add_argument('--model_version', default=29)
 	parser.add_argument('--lr', type=float, default=0.001)
 	parser.add_argument('--balance', type=int, default=100000000)
@@ -65,10 +66,10 @@ if __name__ == '__main__':
 
 		# 모델 재사용
 		if args.test:
-			load_value_network_path = os.path.join(
-				phase_path, 'value_{}'.format(args.model_version))
-			load_policy_network_path = os.path.join(
-				phase_path, 'policy_{}'.format(args.model_version))
+			load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+												   'phase_{}'.format(phase), 'value_{}'.format(args.model_version))
+			load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+												   'phase_{}'.format(phase), 'policy_{}'.format(args.model_version))
 		else: load_value_network_path = " "; load_policy_network_path = " "
 
 		# 차트 데이터, 학습 데이터 준비
