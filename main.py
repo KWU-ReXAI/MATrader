@@ -28,12 +28,17 @@ if __name__ == '__main__':
 	parser.add_argument('--num_step', type=int, default=1)
 	parser.add_argument('--start_epsilon', type=float, default=0.02)
 	parser.add_argument('--noise', type=float, default=0.7)
+	parser.add_argument('--debug', type=bool, default=False)
 	args = parser.parse_args()
 
 	# 출력 경로 설정-> 결과 폴더명: 현재 시각(년/월/일/시/분/초)
 	timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-	output_path = os.path.join(parameters.BASE_DIR,
-		'output/{}'.format(timestamp))
+	if args.debug:
+		output_path = os.path.join(parameters.BASE_DIR,
+								   'output/debug'.format(timestamp))
+	else:
+		output_path = os.path.join(parameters.BASE_DIR,
+			'output/{}'.format(timestamp))
 	if not os.path.isdir(output_path): os.makedirs(output_path)
 
 	# 파라미터 기록
