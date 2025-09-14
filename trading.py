@@ -101,7 +101,10 @@ class Trader:
 							   np.sum(curr_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)) + self.cash
 		
 		reward = (self.portfolio_value - self.prev_portfolio_value)/self.prev_portfolio_value
-
+		next_prices = self.environment.next_price()
+		future_pv = np.sum(self.balance) + \
+							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)) + self.cash
+		future_reward = (future_pv - self.portfolio_value)/self.portfolio_value
 		if recode:
 			for idx, curr_price in enumerate(curr_prices):
 				f.write(str(date) +"," + str(stock_codes[idx]).zfill(6) + "," + str(curr_price) +"," + str(action[idx]) +","\
@@ -109,4 +112,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return reward
+		return reward, reward
