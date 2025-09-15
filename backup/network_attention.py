@@ -30,6 +30,11 @@ class Actor(nn.Module):
 		# Actor 전용 gate 파라미터
 		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
 		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
+
+		num_heads = 2
+		self.attention = nn.MultiheadAttention(embed_dim=inp_dim, num_heads=num_heads, batch_first=True)
+
+		self.layer_norm = nn.LayerNorm(inp_dim)
 		
 		# LSTM layer (batch_first=True로 입력 shape을 (batch, seq, feature)로 가정)
 		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
@@ -54,6 +59,9 @@ class Actor(nn.Module):
 		# Gate 계산
 		gate = torch.sigmoid(self.gate_weight * x + self.gate_bias)
 		weighted = gate * x
+
+		attn_output, _ = self.attention(weighted, weighted, weighted)
+		weighted = self.layer_norm(weighted + attn_output)
 		
 		# LSTM: 마지막 타임스텝 hidden state 사용
 		lstm_out, _ = self.lstm(weighted)  # (batch, window_size, units)
@@ -81,6 +89,11 @@ class Critic(nn.Module):
 		# Critic 전용 gate 파라미터
 		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
 		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
+
+		num_heads = 2
+		self.attention = nn.MultiheadAttention(embed_dim=inp_dim, num_heads=num_heads, batch_first=True)
+
+		self.layer_norm = nn.LayerNorm(inp_dim)
 		
 		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
 		self.state_fc = nn.Sequential(
@@ -102,6 +115,9 @@ class Critic(nn.Module):
 		# state: (batch, window_size, inp_dim), action: (batch, act_dim)
 		gate = torch.sigmoid(self.gate_weight * state + self.gate_bias)
 		weighted = gate * state
+
+		attn_output, _ = self.attention(weighted, weighted, weighted)
+		weighted = self.layer_norm(weighted + attn_output)
 		
 		lstm_out, _ = self.lstm(weighted)   # (batch, window_size, units)
 		lstm_out = lstm_out[:, -1, :]       # (batch, units)
@@ -214,7 +230,7 @@ class TD3_network(nn.Module):
 	# ------------------------------
 	# Actor 학습 (정책 + 가격)
 	# ------------------------------
-	def actor_train(self, states, imitation_action, realPrice, imitation_weight):
+	def actor_train(self, states, imitation_action, realPrice):
 		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
 		imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
 		realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
@@ -228,8 +244,7 @@ class TD3_network(nn.Module):
 
 		price_loss = F.mse_loss(predPrice, realPrice_tensor)
 
-
-		loss = actor_loss + (imitation_weight * imitation_loss) + price_loss # 1->0
+		loss = actor_loss + imitation_loss + price_loss
 
 		# Actor Optimizer
 		self.optimizer_a.zero_grad()
