@@ -66,7 +66,8 @@ class TD3_Agent:
 
 
 	def update_models(self, iters, episode,noise):
-		std_value = iters % 4 + 2
+		std_value = 2
+		# std_value = iters % 4 + 2
 		entropy_loss, actor_loss, critic_loss,loss = 0, 0, 0, 0
 		states, actions, imitation_actions, rewards, dones, next_states, _, gammas, price,_ = self.buffer.sample_batch(parameters.BATCH_SIZE)
 		n_polices = self.network.actor_target_predict(next_states)
@@ -155,13 +156,13 @@ class TD3_Agent:
 					else : imitation_action[stock] = 0
 
 				# 행동 -> reward(from trading), next_state, done(from env)
-				reward = trader.act(action, self.stock_codes, f, recode)
+				_, reward = trader.act(action, self.stock_codes, f, recode)
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, environment.curr_price()))
 				# act에서 env.idx + 1을 했으므로 curr_price가 next_price임
 
-				if len(self.n_steps_buffer) >= parameters.N_STEP_RETURNS:
+				if len(self.n_steps_buffer) >= reward_n_step:
 					state, policy, imitation_action, reward, _, _, prev_price = self.n_steps_buffer.popleft()
 					_, _, _, _, done, next_state, price = self.n_steps_buffer[-1]
 					# done이 True이면, next_state가 None이므로 ReplayBuffer에서 뽑을 때 타입이 안 맞아서 에러남
@@ -234,7 +235,7 @@ class TD3_Agent:
 			# Actor picks an action (following the deterministic policy) and retrieve reward
 			policy = self.network.actor_predict(np.array(state))
 			action= policy[0]
-			reward = trader.act(action, self.stock_codes, f, 1)
+			reward, _ = trader.act(action, self.stock_codes, f, 1)
 			memory_reward.append(reward)
 			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
