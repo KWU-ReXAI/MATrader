@@ -15,9 +15,9 @@ class Trader:
 		self.act_dim = act_dim # 거래하는 종목 수
 		self.num_actions = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
 		# 포트폴리오 관련
-		self.balance = np.full(act_dim, balance // act_dim)  # 종목별 잔고: 동등하게 분배
+		self.balance = np.full(act_dim, balance // act_dim, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
 		self.cash = balance % act_dim # 종목 별로 잔고 동등하게 나누고 남은 현금
-		self.num_stocks = np.zeros(act_dim)  # 종목별 보유 주식 수
+		self.num_stocks = np.zeros(act_dim, dtype=np.int64)  # 종목별 보유 주식 수
 		# 포트폴리오 가치: balance + num_stocks * {현재 주식 가격} * (1-수수료)
 		self.portfolio_value = balance
 		self.prev_portfolio_value = balance
@@ -27,9 +27,9 @@ class Trader:
 		self.num_hold = 0  # 홀딩 횟수
 
 	def reset(self):
-		self.balance = np.full(self.act_dim, self.initial_balance // self.act_dim)
+		self.balance = np.full(self.act_dim, self.initial_balance // self.act_dim, dtype=np.int64)
 		self.cash = self.initial_balance % self.act_dim
-		self.num_stocks = np.zeros(self.act_dim)
+		self.num_stocks = np.zeros(self.act_dim, dtype=np.int64)
 		self.portfolio_value = self.initial_balance
 		self.prev_portfolio_value = self.initial_balance
 		self.num_buy = 0

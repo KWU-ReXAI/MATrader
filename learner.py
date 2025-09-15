@@ -18,12 +18,14 @@ np.random.seed(42)
 from network import TD3_network
 from utils.memory import TD3_MemoryBuffer
 class TD3_Agent:
-	def __init__(self, stock_codes:list, num_of_stock, phase, train_chart_data,test_chart_data, training_data, test_data,
+	def __init__(self, stock_codes:list, num_of_stock, phase, testNum, quarter, train_chart_data,test_chart_data, training_data, test_data,
 				delayed_reward_threshold=.05, balance =10000, lr = 0.001,output_path='', test=False,
 				value_network_path=None, policy_network_path=None, load_value_network_path = None, load_policy_network_path = None,
 				window_size = 5):
 		# data
 		self.phase = phase
+		self.testNum = testNum
+		self.quarter = quarter
 		self.train_chart_data = train_chart_data
 		self.test_chart_data = test_chart_data
 		self.training_data = training_data
@@ -110,11 +112,11 @@ class TD3_Agent:
 		environment = Environment(self.train_chart_data, self.training_data)
 		trader = Trader(environment, self.balance, self.act_dim, delayed_reward_threshold=self.delayed_reward_threshold)
 
-		info = "[{code} - phase_{phase}] LR:{lr} " \
+		info = "[{code} - phase_{phase}_{testNum} {quarter}] LR:{lr} " \
 			"DRT:{delayed_reward_threshold}".format(
 			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
-			phase=self.phase
+			phase=self.phase, testNum=self.testNum, quarter=self.quarter
 		)
 		logging.info(info)
 		epsilon = start_epsilon
@@ -190,10 +192,10 @@ class TD3_Agent:
 
 			max_episode_digit = len(str(max_episode))
 			epoch_str = str(e + 1).rjust(max_episode_digit, '0')
-			logging.info("[{}]-[{} - phase_{}][Epoch {}/{}][EPSILON {:.5f}]"
+			logging.info("[{}]-[{} - phase_{}_{} {}][Epoch {}/{}][EPSILON {:.5f}]"
 				"#Buy:{} #Sell:{} #Hold:{} "
 				"#Stocks:{} PV:{:,.0f}".format(threading.currentThread().getName(),
-					'_'.join(self.stock_codes), self.phase, epoch_str, max_episode,epsilon,
+					'_'.join(self.stock_codes), self.phase, self.testNum, self.quarter, epoch_str, max_episode,epsilon,
 					trader.num_buy, trader.num_sell, trader.num_hold,
 					trader.num_stocks,	trader.portfolio_value))
 			if recode == 1 :
@@ -212,11 +214,11 @@ class TD3_Agent:
 		f = open(csv_path, "w")
 		f.write("date,stock,price,action,num_stock,portfolio_value\n")
 
-		info = "[{code} - phase_{phase}] LR:{lr} " \
+		info = "[{code} - phase_{phase}_{testNum} {quarter}] LR:{lr} " \
 			   "DRT:{delayed_reward_threshold}".format(
 			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
-			phase = self.phase
+			phase = self.phase, testNum = self.testNum, quarter=self.quarter
 		)
 		logging.info(info)
 
@@ -243,10 +245,10 @@ class TD3_Agent:
 		sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward))/ (np.std(memory_reward) + 1e-10)
 		mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
 												in zip(itertools.accumulate(memory_pv, max), memory_pv))
-		logging.info("[{}]-[{} - phase_{}]"
+		logging.info("[{}]-[{} - phase_{}_{} {}]"
 					 "#Buy:{} #Sell:{} #Hold:{} "
 					 "#Stocks:{} PV:{:,.0f} SR {:.2f} MDD {:.2f}".format(threading.currentThread().getName(), '_'.join(self.stock_codes),
-															  self.phase, trader.num_buy, trader.num_sell,
+															  self.phase, self.testNum, self.quarter, trader.num_buy, trader.num_sell,
 															  trader.num_hold,
 															  trader.num_stocks, trader.portfolio_value,
 															  sr, mdd))
