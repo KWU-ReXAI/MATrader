@@ -25,7 +25,7 @@ if __name__ == '__main__':
 	parser.add_argument('--workers', type=int, default=1)
 	parser.add_argument('--window_size', type=int, default=10)
 	parser.add_argument('--feature_window', type=int, default=1)
-	parser.add_argument('--num_step', type=int, default=1)
+	parser.add_argument('--num_step', type=int, default=2)
 	parser.add_argument('--start_epsilon', type=float, default=0.02)
 	parser.add_argument('--noise', type=float, default=0.7)
 	args = parser.parse_args()

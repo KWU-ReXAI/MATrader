@@ -22,13 +22,13 @@ class Data:
         train_end, test_end = end_date
         self.train_start_idx = len(self.original_data[(self.original_data['date'] < str(train_start))])
         self.test_start_idx = len(self.original_data[(self.original_data['date'] < str(test_start))])
-        self.train_end_idx = len(self.original_data[(self.original_data['date'] < str(train_end))]) + 1
-        self.test_end_idx = len(self.original_data[(self.original_data['date'] < str(test_end))]) + 1
+        self.train_end_idx = len(self.original_data[(self.original_data['date'] <= str(train_end))])
+        self.test_end_idx = len(self.original_data[(self.original_data['date'] <= str(test_end))])
 
         self.training_data = self.original_data.copy()
-        self.training_data = self.training_data[self.train_start_idx-window_size:self.train_end_idx]
+        self.training_data = self.training_data[self.train_start_idx-window_size+1:self.train_end_idx]
         self.test_data = self.original_data.copy()
-        self.test_data = self.test_data[self.test_start_idx-window_size:self.test_end_idx]
+        self.test_data = self.test_data[self.test_start_idx-window_size+1:self.test_end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size
@@ -44,7 +44,7 @@ class Data:
 
     def get_stock_data(self):
         open_list = [];close_list = [];high_list = [];low_list = [];volume_list = []
-        for i in range(self.train_start_idx-self.window_size, self.train_end_idx):
+        for i in range(self.train_start_idx-self.window_size+1, self.train_end_idx):
             open_list.append((self.open[i] - self.close[i-1])/self.close[i-1])
             close_list.append((self.close[i] - self.open[i])/self.open[i])
             high_list.append((self.high[i] - self.open[i])/self.open[i])
@@ -95,10 +95,10 @@ class Cluster_Data(Data):
 
         train_windows_data = []
         test_windows_data = []
-        for index in range(self.window_size,len(self.training_data)):
+        for index in range(self.window_size,len(self.training_data)+1):
             data = self.training_data.iloc[index-self.window_size:index]
             train_windows_data.append(np.array(data))
-        for index in range(self.window_size,len(self.test_data)):
+        for index in range(self.window_size,len(self.test_data)+1):
             data = self.test_data.iloc[index-self.window_size:index]
             test_windows_data.append(np.array(data))
 
@@ -109,7 +109,7 @@ class Cluster_Data(Data):
         test_candle_data = self.test_tmp.copy()
 
         upper = []; lower = []; body= []; colors= []     #upper lenght,lower length,body length,body color
-        for index in range(self.train_start_idx- self.window_size, self.train_end_idx):
+        for index in range(self.train_start_idx-self.window_size+1, self.train_end_idx):
             body.append([np.abs(self.close[index] - self.open[index])])
             if self.close[index] - self.open[index] > 0: 
                 upper.append([self.high[index] - self.close[index]])
@@ -128,7 +128,7 @@ class Cluster_Data(Data):
         fcm = FCM(n_clusters=self.n_cluster); fcm.fit(np.array(train_candle_data))
 
         upper = []; lower = []; body = []; colors = []
-        for index in range(self.test_start_idx - self.window_size, self.test_end_idx):
+        for index in range(self.test_start_idx - self.window_size + 1, self.test_end_idx):
             body.append([np.abs(self.close[index] - self.open[index])])
             if self.close[index] - self.open[index] > 0:
                 upper.append([self.high[index] - self.close[index]])
@@ -381,9 +381,9 @@ class Cluster_Data(Data):
         self.test_data["momentum_center 7"] = d_7; self.test_data["momentum_center 8"] = d_8
 
     def cluster(self,name,data):
-        train_data = data[self.train_start_idx-self.window_size:self.train_end_idx]
+        train_data = data[self.train_start_idx-self.window_size+1:self.train_end_idx]
         train_data = self.winodw_scaler(train_data)
-        test_data = data[self.test_start_idx - self.window_size:self.test_end_idx]
+        test_data = data[self.test_start_idx-self.window_size+1:self.test_end_idx]
         test_data = self.winodw_scaler(test_data)
         return train_data, test_data
     
