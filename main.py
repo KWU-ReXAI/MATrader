@@ -7,12 +7,11 @@ import datetime
 from parameters import parameters
 import data_manager
 from learner import TD3_Agent
-from phase import phase2date
-PHASE = 4
+from phase import phase2quarter
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--stock_codes', nargs='+', type=str)
+	parser.add_argument('--stock_dir', type=str)
 	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='ROK')
 	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
 	parser.add_argument('--test', default=False)
@@ -50,19 +49,31 @@ if __name__ == '__main__':
 	logging.basicConfig(format="%(message)s",
 		handlers=[file_handler, stream_handler], level=logging.DEBUG)
 
-	for phase in range(1, PHASE+1):
-		phase_path = os.path.join(output_path, 'phase_{}'.format(phase))
-		start_date, end_date = phase2date(phase)
+	trading_quarters = phase2quarter(args.stock_dir)
+
+	for trading_quarter in trading_quarters:
+		phase = trading_quarter['phase']
+		testNum = trading_quarter['testNum']
+		quarter = trading_quarter['quarter']
+		start_date = trading_quarter['start_date']
+		end_date = trading_quarter['end_date']
+		stock_codes = trading_quarter['stock_codes']
+
+		quarter_path = os.path.join(output_path, f'phase_{phase}_{testNum}', quarter)
+		if not os.path.isdir(quarter_path): os.makedirs(quarter_path)
+		### 뽑힌 주식 없을 때 예외처리(임시, 폴더만 생성) ###
+		if not stock_codes:
+			continue
 
 		# feature model: FCM, PCA 모델 -> 추후 저장 가능
-		feature_model_path = os.path.join(phase_path, 'feature_model')
+		feature_model_path = os.path.join(quarter_path, 'feature_model')
 		if not os.path.isdir(feature_model_path): os.makedirs(feature_model_path)
 
 		# 모델 경로 준비
 		policy_network_path = os.path.join(
-			phase_path, 'policy')
+			quarter_path, 'policy')
 		value_network_path = os.path.join(
-			phase_path, 'value')
+			quarter_path, 'value')
 
 		# 모델 재사용
 		if args.test:
@@ -75,21 +86,21 @@ if __name__ == '__main__':
 		# 차트 데이터, 학습 데이터 준비
 		train_chart_data, test_chart_data, training_data, test_data = data_manager.load_data(
 			os.path.join(parameters.BASE_DIR,
-			'data/{}/'.format(args.ver)), args.stock_codes, feature_model_path,
+			'data/{}/'.format(args.ver)), stock_codes, feature_model_path,
 			start_date, end_date, window_size=args.window_size, feature_window=args.feature_window, algorithm=args.algorithm)
 
 		# 공통 파라미터 설정
 		common_params = {'delayed_reward_threshold': args.delayed_reward_threshold,
 					'balance' : args.balance}
 		# 강화학습 시작
-		common_params.update({'stock_codes': args.stock_codes,
-							  'num_of_stock': len(args.stock_codes),
+		common_params.update({'stock_codes': stock_codes,
+							  'num_of_stock': len(stock_codes),
 							  'train_chart_data': train_chart_data, 'test_chart_data': test_chart_data,
 							  'training_data': training_data,'test_data': test_data})
 		# f.open
 		if args.algorithm == 'td3':
-			learner = TD3_Agent(**{**common_params, 'output_path': phase_path, 'lr': args.lr, 'test': args.test, 'phase': phase,
-						'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
+			learner = TD3_Agent(**{**common_params, 'output_path': quarter_path, 'lr': args.lr, 'test': args.test, 'phase': phase,
+						'testNum': testNum, 'quarter': quarter, 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
 						'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
 						'window_size': args.window_size})
 			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
