@@ -23,21 +23,20 @@ def phase2quarter(s2fe):
 				test_end = row.iloc[3]
 				train_start = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1500)).strftime('%Y-%m-%d')
 				train_end = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
-				start = (train_start, test_start)
-				end = (train_end, test_end)
 
 				stocks = row.iloc[4:].tolist()
 				stocks = [str(int(stock)).zfill(6) for stock in stocks if pd.notna(stock)]
 
 				result_dict = {'phase': match.group(1), 'testNum': match.group(2),
-							   'quarter': quarter, 'start_date': start,
-							   'end_date': end, 'stock_codes': stocks}
+							   'quarter': quarter, 'train_start': train_start,
+							   'train_end': train_end, 'test_start': test_start,
+							   'test_end': test_end, 'stock_codes': stocks}
 				results.append(result_dict)
 
 		except FileNotFoundError:
 			print(f"오류: '{csv_file}' 파일을 찾을 수 없습니다.")
 	df = pd.DataFrame(results)
-	return results
+	return df
 
 if __name__ == '__main__':
 	phase2quarter('result_1')

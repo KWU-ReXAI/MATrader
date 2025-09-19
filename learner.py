@@ -44,7 +44,7 @@ class TD3_Agent:
 		self.window_size = window_size
 		self.test = test
 		self.act_dim = num_of_stock
-		self.inp_dim = self.training_data.shape[2] #학습 데이터 크기
+		self.inp_dim = self.test_data.shape[2] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
 		self.delayed_reward_threshold = delayed_reward_threshold
