@@ -11,7 +11,7 @@ symbol_path = os.path.join(BASE_DIR + "/data/symbol.csv")
 os.makedirs(os.path.join(BASE_DIR + "/data/ROK"), exist_ok=True)
 
 start_date = '2015-01-01'
-end_date = '2025-04-15'
+end_date = '2025-09-17'
 
 kospi = {}
 

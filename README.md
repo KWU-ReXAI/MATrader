@@ -5,19 +5,23 @@
 ### 훈련 (Training)
 
 ```bash
-python main.py --stock_dir [S2FE 결과 폴더 이름]
+python main.py --stock_dir [S2FE 결과 폴더 이름] --output_name [결과 폴더 이름]
 ```
 
 -   **`--stock_dir`**: `data/S2FE/` 경로에 저장된 S2FE 결과 폴더의 이름을 지정합니다.
+-   **`--output_name`**: `output` 경로에 결과를 저장할 폴더의 이름을 지정합니다.
+    - `default`: 현재 시각(`%Y%m%d_%H%M%S`)
 
 > **참고**: 세부 하이퍼파라미터는 `main.py` 파일을 참조하세요.
 
 ### 테스트 (Testing)
 
 ```bash
-python main.py --stock_dir [S2FE 결과 폴더 이름] --test True --model_dir [훈련 폴더명]
+python main.py --stock_dir [S2FE 결과 폴더 이름] --output_name [결과 폴더 이름] --test --model_dir [훈련 폴더명]
 ```
 
 -   **`--stock_dir`**: 훈련에 사용했던 S2FE 결과 폴더의 이름을 동일하게 지정합니다.
--   **`--test True`**: 모델을 테스트 모드로 실행합니다.
+-   **`--output_name`**: `output` 경로에 결과를 저장할 폴더의 이름을 지정합니다.
+    - `default`: 현재 시각(`%Y%m%d_%H%M%S`)
+-   **`--test`**: 모델을 테스트 모드로 실행합니다.
 -   **`--model_dir`**: 테스트할 모델(`*.pt`)이 저장된 훈련 폴더의 이름을 지정합니다. 훈련 시 자동으로 생성된 폴더명을 사용하면 됩니다.
