@@ -57,10 +57,6 @@ if __name__ == '__main__':
 		if not row.stock_codes:
 			continue
 
-		# feature model: FCM, PCA 모델 -> 추후 저장 가능
-		feature_model_path = os.path.join(quarter_path, 'feature_model')
-		if not os.path.isdir(feature_model_path): os.makedirs(feature_model_path)
-
 		# 모델 경로 준비
 		policy_network_path = os.path.join(
 			quarter_path, 'policy')
@@ -70,10 +66,17 @@ if __name__ == '__main__':
 		# 모델 재사용
 		if args.test:
 			load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-												   'phase_{}'.format(row.phase), 'value_{}'.format(args.model_version))
+				f'phase_{row.phase}_{row.testNum}', row.quarter, 'value_{}'.format(args.model_version))
 			load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-												   'phase_{}'.format(row.phase), 'policy_{}'.format(args.model_version))
-		else: load_value_network_path = " "; load_policy_network_path = " "
+				f'phase_{row.phase}_{row.testNum}', row.quarter, 'policy_{}'.format(args.model_version))
+			feature_model_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+				f'phase_{row.phase}_{row.testNum}', row.quarter, 'feature_model')
+		else:
+			load_value_network_path = " "
+			load_policy_network_path = " "
+			# feature model: FCM, PCA 모델
+			feature_model_path = os.path.join(quarter_path, 'feature_model')
+			if not os.path.isdir(feature_model_path): os.makedirs(feature_model_path)
 
 		# 차트 데이터, 학습 데이터 준비
 		train_chart_data, test_chart_data, training_data, test_data = data_manager.load_data(
