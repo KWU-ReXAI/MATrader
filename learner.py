@@ -18,12 +18,14 @@ np.random.seed(42)
 from network import TD3_network
 from utils.memory import TD3_MemoryBuffer
 class TD3_Agent:
-	def __init__(self, stock_codes:list, num_of_stock, phase, train_chart_data,test_chart_data, training_data, test_data,
+	def __init__(self, stock_codes:list, num_of_stock, phase, testNum, quarter, train_chart_data,test_chart_data, training_data, test_data,
 				delayed_reward_threshold=.05, balance =10000, lr = 0.001,output_path='', test=False,
 				value_network_path=None, policy_network_path=None, load_value_network_path = None, load_policy_network_path = None,
 				window_size = 5):
 		# data
 		self.phase = phase
+		self.testNum = testNum
+		self.quarter = quarter
 		self.train_chart_data = train_chart_data
 		self.test_chart_data = test_chart_data
 		self.training_data = training_data
@@ -42,7 +44,7 @@ class TD3_Agent:
 		self.window_size = window_size
 		self.test = test
 		self.act_dim = num_of_stock
-		self.inp_dim = self.training_data.shape[2] #학습 데이터 크기
+		self.inp_dim = self.test_data.shape[2] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
 		self.delayed_reward_threshold = delayed_reward_threshold
@@ -66,7 +68,8 @@ class TD3_Agent:
 
 
 	def update_models(self, iters, episode,noise):
-		std_value = iters % 4 + 2
+		std_value = 2
+		# std_value = iters % 4 + 2
 		entropy_loss, actor_loss, critic_loss,loss = 0, 0, 0, 0
 		states, actions, imitation_actions, rewards, dones, next_states, _, gammas, price,_ = self.buffer.sample_batch(parameters.BATCH_SIZE)
 		n_polices = self.network.actor_target_predict(next_states)
@@ -109,11 +112,11 @@ class TD3_Agent:
 		environment = Environment(self.train_chart_data, self.training_data)
 		trader = Trader(environment, self.balance, self.act_dim, delayed_reward_threshold=self.delayed_reward_threshold)
 
-		info = "[{code} - phase_{phase}] LR:{lr} " \
+		info = "[{code} - phase_{phase}_{testNum} {quarter}] LR:{lr} " \
 			"DRT:{delayed_reward_threshold}".format(
 			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
-			phase=self.phase
+			phase=self.phase, testNum=self.testNum, quarter=self.quarter
 		)
 		logging.info(info)
 		epsilon = start_epsilon
@@ -155,13 +158,13 @@ class TD3_Agent:
 					else : imitation_action[stock] = 0
 
 				# 행동 -> reward(from trading), next_state, done(from env)
-				reward = trader.act(action, self.stock_codes, f, recode)
+				_, reward = trader.act(action, self.stock_codes, f, recode)
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.n_steps_buffer.append((state, policy, imitation_action, reward, done, next_state, environment.curr_price()))
 				# act에서 env.idx + 1을 했으므로 curr_price가 next_price임
 
-				if len(self.n_steps_buffer) >= parameters.N_STEP_RETURNS:
+				if len(self.n_steps_buffer) >= reward_n_step:
 					state, policy, imitation_action, reward, _, _, prev_price = self.n_steps_buffer.popleft()
 					_, _, _, _, done, next_state, price = self.n_steps_buffer[-1]
 					# done이 True이면, next_state가 None이므로 ReplayBuffer에서 뽑을 때 타입이 안 맞아서 에러남
@@ -189,10 +192,10 @@ class TD3_Agent:
 
 			max_episode_digit = len(str(max_episode))
 			epoch_str = str(e + 1).rjust(max_episode_digit, '0')
-			logging.info("[{}]-[{} - phase_{}][Epoch {}/{}][EPSILON {:.5f}]"
+			logging.info("[{}]-[{} - phase_{}_{} {}][Epoch {}/{}][EPSILON {:.5f}]"
 				"#Buy:{} #Sell:{} #Hold:{} "
 				"#Stocks:{} PV:{:,.0f}".format(threading.currentThread().getName(),
-					'_'.join(self.stock_codes), self.phase, epoch_str, max_episode,epsilon,
+					'_'.join(self.stock_codes), self.phase, self.testNum, self.quarter, epoch_str, max_episode,epsilon,
 					trader.num_buy, trader.num_sell, trader.num_hold,
 					trader.num_stocks,	trader.portfolio_value))
 			if recode == 1 :
@@ -211,11 +214,11 @@ class TD3_Agent:
 		f = open(csv_path, "w")
 		f.write("date,stock,price,action,num_stock,portfolio_value\n")
 
-		info = "[{code} - phase_{phase}] LR:{lr} " \
+		info = "[{code} - phase_{phase}_{testNum} {quarter}] LR:{lr} " \
 			   "DRT:{delayed_reward_threshold}".format(
 			code='_'.join(self.stock_codes), lr=self.lr,
 			delayed_reward_threshold=self.delayed_reward_threshold,
-			phase = self.phase
+			phase = self.phase, testNum = self.testNum, quarter=self.quarter
 		)
 		logging.info(info)
 
@@ -234,7 +237,7 @@ class TD3_Agent:
 			# Actor picks an action (following the deterministic policy) and retrieve reward
 			policy = self.network.actor_predict(np.array(state))
 			action= policy[0]
-			reward = trader.act(action, self.stock_codes, f, 1)
+			reward, _ = trader.act(action, self.stock_codes, f, 1)
 			memory_reward.append(reward)
 			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
@@ -242,10 +245,10 @@ class TD3_Agent:
 		sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward))/ (np.std(memory_reward) + 1e-10)
 		mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
 												in zip(itertools.accumulate(memory_pv, max), memory_pv))
-		logging.info("[{}]-[{} - phase_{}]"
+		logging.info("[{}]-[{} - phase_{}_{} {}]"
 					 "#Buy:{} #Sell:{} #Hold:{} "
 					 "#Stocks:{} PV:{:,.0f} SR {:.2f} MDD {:.2f}".format(threading.currentThread().getName(), '_'.join(self.stock_codes),
-															  self.phase, trader.num_buy, trader.num_sell,
+															  self.phase, self.testNum, self.quarter, trader.num_buy, trader.num_sell,
 															  trader.num_hold,
 															  trader.num_stocks, trader.portfolio_value,
 															  sr, mdd))

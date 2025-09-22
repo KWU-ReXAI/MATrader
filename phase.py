@@ -1,22 +1,42 @@
-def phase2date(phase):
-	# 사실 페이즈 4의 4개 분기에 대한 것
-	# 분기별로 종목이 바뀌기 때문
-	# 짧은 기간에도 성능이 나오는 지를 보기 위함이니, 추후 수정 요망
-	if phase == 1:
-		train_start = '2020-03-23'; test_start = '2024-03-23'
-		train_end = '2024-03-22'; test_end = '2024-05-17'
-	elif phase == 2:
-		train_start = '2020-05-18'; test_start = '2024-05-18'
-		train_end = '2024-05-17'; test_end = '2024-08-15'
-	elif phase == 3:
-		train_start = '2020-08-16'; test_start = '2024-08-16'
-		train_end = '2024-08-15'; test_end = '2024-11-15'
-	elif phase == 4:
-		train_start = '2020-11-16'; test_start = '2024-11-16'
-		train_end = '2024-11-15'; test_end = '2025-03-21'
-	else:
-		train_start = None; test_start = None
-		train_end = None; test_end = None
-	start = (train_start, test_start)
-	end = (train_end, test_end)
-	return start, end
+import os
+import re
+import glob
+import pandas as pd
+from datetime import datetime, timedelta
+from parameters import parameters
+
+def phase2quarter(s2fe):
+	# 각 페이즈의 분기별 선택된 주식, 거래일 및 훈련일 반환
+	folder_path = os.path.join(parameters.BASE_DIR,
+							   f'data/S2FE/{s2fe}')
+	csv_files = glob.glob(os.path.join(folder_path, "*.csv"))
+	results = []
+	pattern = re.compile(r"test_selected_stocks_p(\d+)_(\d+)\.csv$")
+	for csv_file in csv_files:
+		try:
+			file_name = os.path.basename(csv_file)
+			match = pattern.search(file_name)
+			df = pd.read_csv(csv_file, header=0)
+			for _, row in df.iterrows():
+				quarter = row.iloc[1]
+				test_start = row.iloc[2]
+				test_end = row.iloc[3]
+				train_start = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1500)).strftime('%Y-%m-%d')
+				train_end = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+
+				stocks = row.iloc[4:].tolist()
+				stocks = [str(int(stock)).zfill(6) for stock in stocks if pd.notna(stock)]
+
+				result_dict = {'phase': match.group(1), 'testNum': match.group(2),
+							   'quarter': quarter, 'train_start': train_start,
+							   'train_end': train_end, 'test_start': test_start,
+							   'test_end': test_end, 'stock_codes': stocks}
+				results.append(result_dict)
+
+		except FileNotFoundError:
+			print(f"오류: '{csv_file}' 파일을 찾을 수 없습니다.")
+	df = pd.DataFrame(results)
+	return df
+
+if __name__ == '__main__':
+	phase2quarter('result_1')
