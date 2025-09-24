@@ -10,11 +10,11 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "0"
 np.random.seed(42)
 class Data(metaclass=abc.ABCMeta):
-    def __init__(self,data, start, end, window_size = 1, fmpath = None, feature_window=1, train=True):
+    def __init__(self, stock, data, start, end, window_size = 1, fmpath = None, feature_window=1, train=True):
         self.open = data['open']; self.close = data['close']; self.high = data['high']
         self.low = data['low']; self.adj_close = data['adj close']; self.volume = data['volume']
         self.original_data = pd.DataFrame({"date":data['date']})
-        self.train=train
+        self.train = train; self.stock = stock
 
         self.start_idx = len(self.original_data[(self.original_data['date'] < str(start))])
         self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
@@ -85,9 +85,9 @@ class Cluster_Data(Data):
         if self.train:
             fcm = FCM(n_clusters=self.n_cluster)
             fcm.fit(np.array(candle_data))
-            joblib.dump(fcm, os.path.join(self.fmpath, 'fcm_candle.joblib'))
+            joblib.dump(fcm, os.path.join(self.fmpath, f'fcm_candle_{self.stock}.joblib'))
         else:
-            fcm = joblib.load(os.path.join(self.fmpath, 'fcm_candle.joblib'))
+            fcm = joblib.load(os.path.join(self.fmpath, f'fcm_candle_{self.stock}.joblib'))
         cluster_n = fcm.predict(np.array(candle_data))
         cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
         for current_center in zip(cluster_n):
@@ -131,17 +131,17 @@ class Cluster_Data(Data):
         if self.train:
             pca = PCA(n_components=self.pca_dim) # None -> all feature, 2 -> 2-dimension
             pca.fit(overlap_data)
-            joblib.dump(pca, os.path.join(self.fmpath, 'pca_overlay.joblib'))
+            joblib.dump(pca, os.path.join(self.fmpath, f'pca_overlay_{self.stock}.joblib'))
         else:
-            pca = joblib.load(os.path.join(self.fmpath, 'pca_overlay.joblib'))
+            pca = joblib.load(os.path.join(self.fmpath, f'pca_overlay_{self.stock}.joblib'))
         pca_data = pca.transform(overlap_data)
 
         if self.train:
             fcm = FCM(n_clusters=self.n_cluster)
             fcm.fit(pca_data)
-            joblib.dump(fcm, os.path.join(self.fmpath, 'fcm_overlay.joblib'))
+            joblib.dump(fcm, os.path.join(self.fmpath, f'fcm_overlay_{self.stock}.joblib'))
         else:
-            fcm = joblib.load(os.path.join(self.fmpath, 'fcm_overlay.joblib'))
+            fcm = joblib.load(os.path.join(self.fmpath, f'fcm_overlay_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(pca_data)
         cluster_center = fcm.centers
@@ -163,9 +163,9 @@ class Cluster_Data(Data):
         if self.train:
             fcm = FCM(n_clusters=self.n_cluster)
             fcm.fit(np.array(volume_data))
-            joblib.dump(fcm, os.path.join(self.fmpath, 'fcm_volume.joblib'))
+            joblib.dump(fcm, os.path.join(self.fmpath, f'fcm_volume_{self.stock}.joblib'))
         else:
-            fcm = joblib.load(os.path.join(self.fmpath, 'fcm_volume.joblib'))
+            fcm = joblib.load(os.path.join(self.fmpath, f'fcm_volume_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(np.array(volume_data))
         cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
@@ -188,9 +188,9 @@ class Cluster_Data(Data):
         if self.train:
             fcm = FCM(n_clusters=self.n_cluster)
             fcm.fit(np.array(vol_data))
-            joblib.dump(fcm, os.path.join(self.fmpath, 'fcm_volatility.joblib'))
+            joblib.dump(fcm, os.path.join(self.fmpath, f'fcm_volatility_{self.stock}.joblib'))
         else:
-            fcm = joblib.load(os.path.join(self.fmpath, 'fcm_volatility.joblib'))
+            fcm = joblib.load(os.path.join(self.fmpath, f'fcm_volatility_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(np.array(vol_data))
         cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
@@ -259,17 +259,17 @@ class Cluster_Data(Data):
         if self.train:
             pca = PCA(n_components=self.pca_dim)  # None -> all feature, 2 -> 2-dimension
             pca.fit(momentum_data)
-            joblib.dump(pca, os.path.join(self.fmpath, 'pca_momentum.joblib'))
+            joblib.dump(pca, os.path.join(self.fmpath, f'pca_momentum_{self.stock}.joblib'))
         else:
-            pca = joblib.load(os.path.join(self.fmpath, 'pca_momentum.joblib'))
+            pca = joblib.load(os.path.join(self.fmpath, f'pca_momentum_{self.stock}.joblib'))
         pca_data = pca.transform(momentum_data)
 
         if self.train:
             fcm = FCM(n_clusters=self.n_cluster)
             fcm.fit(pca_data)
-            joblib.dump(fcm, os.path.join(self.fmpath, 'fcm_momentum.joblib'))
+            joblib.dump(fcm, os.path.join(self.fmpath, f'fcm_momentum_{self.stock}.joblib'))
         else:
-            fcm = joblib.load(os.path.join(self.fmpath, 'fcm_momentum.joblib'))
+            fcm = joblib.load(os.path.join(self.fmpath, f'fcm_momentum_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(pca_data)
         cluster_center = fcm.centers
