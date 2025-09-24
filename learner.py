@@ -161,12 +161,13 @@ class TD3_Agent:
 				# Pick imitation action
 				# 매매 타입 3개일 때만 적용 가능!
 				imitation_action = np.zeros(self.act_dim)
-				"""for stock, curr_price in enumerate(curr_prices):
+				for stock, curr_price in enumerate(curr_prices):
 					if next_prices is None: imitation_action[stock] = 0 # 홀딩
 					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock] = -2 # 매수
 					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock] = 2 # 매도
-					else : imitation_action[stock] = 0"""
-				if environment.idx >= 20:
+					else : imitation_action[stock] = 0
+
+				"""if environment.idx >= 20:
 					for stock_idx in range(self.act_dim):
 						# 이동평균 계산에 필요한 과거 종가 데이터 추출 (현재 포함 21일치)
 						# chart_data shape: (거래일, 종목수, 피처), 종가(PRICE_IDX)는 4번 인덱스
@@ -184,7 +185,7 @@ class TD3_Agent:
 						elif short_ma[-2] > long_ma[-2] and short_ma[-1] < long_ma[-1]:
 							imitation_action[stock_idx] = 2  # 매도 신호
 						else:
-							imitation_action[stock_idx] = 0  # 홀딩
+							imitation_action[stock_idx] = 0  # 홀딩"""
 
 				# 행동 -> reward(from trading), next_state, done(from env)
 				_, reward = trader.act(action, self.stock_codes, f, recode)
