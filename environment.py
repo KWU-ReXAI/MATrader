@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+import data_manager
 
 class Environment:
     DATE = 0        # 날짜의 위치
@@ -105,3 +106,58 @@ class Environment:
 
         plt.savefig(path + "_all_stocks.png")
         plt.close(fig)
+
+
+class RealtimeEnvironment:
+    DATE = 0  # 날짜의 위치
+    PRICE_IDX = 4  # 종가의 위치
+    BUY = -2  # 매수 시그널 위치
+    SELL = -1  # 매도 시그널 위치
+    def __init__(self, api_handler, stock_codes, fmpath, window_size, feature_window):
+        """
+        실시간 거래 환경을 위한 클래스
+        """
+        self.api_handler = api_handler
+        self.stock_codes = stock_codes
+        self.fmpath = fmpath
+        self.window_size = window_size
+        self.feature_window = feature_window
+
+        self.chart_data = None  # 현재 시세 데이터를 저장할 변수
+
+    def reset(self):
+        # 실시간 환경에서는 reset이 별다른 동작을 하지 않습니다.
+        self.chart_data = None
+
+    def build_state(self):
+        """
+        data_manager를 통해 실시간 데이터를 가져와 모델의 입력(state)으로 변환합니다.
+        """
+        # 1단계에서 만든 실시간 데이터 로더 함수 호출
+        state, chart_data = data_manager.load_realtime_data(
+            self.api_handler,
+            self.stock_codes,
+            self.fmpath,
+            self.window_size,
+            self.feature_window
+        )
+
+        if state is None:
+            return None, True  # 데이터를 가져오지 못하면 종료 신호(True) 반환
+
+        # 현재 가격 정보를 클래스 내에 저장
+        self.chart_data = chart_data
+
+        # state와 종료 여부(False) 반환
+        return state, False
+
+    def curr_price(self):
+        """
+        build_state가 호출될 때 저장해둔 최신 가격 정보를 반환합니다.
+        """
+        if self.chart_data is not None:
+            # (1, num_stocks, num_features) -> (num_stocks, num_features)
+            chart_data_squeezed = np.squeeze(self.chart_data, axis=0)
+            return chart_data_squeezed[:, self.PRICE_IDX].astype(np.float32)
+        return None
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
