@@ -24,7 +24,7 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
         train_datas = []
     test_chart_datas = []; test_datas = []
 
-    for idx, data in tqdm(enumerate(df_stocks), desc='Data preprocessing'):
+    for idx, data in enumerate(tqdm(df_stocks, desc='Data preprocessing')):
         if train:
             train_feature = Cluster_Data(stocks[idx], data,train_start, train_end, window_size, fmpath, feature_window, train=True)
             train_data = train_feature.load_data()
@@ -39,12 +39,10 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
         test_datas.append(test_data); test_chart_datas.append(test_chart_data)
     if train:
         train_chart_data = np.stack(train_chart_datas, axis=1)
-        train_data = np.stack(train_datas, axis=2)
-        train_data = train_data.reshape(train_data.shape[0], train_data.shape[1], -1)
+        train_data = np.stack(train_datas, axis=1)
     test_chart_data = np.stack(test_chart_datas, axis=1)
-    test_data = np.stack(test_datas, axis=2)
-    test_data = test_data.reshape(test_data.shape[0], test_data.shape[1], -1)
-    # train/test data: (거래일 수, time window, 종목 수 * feature 수)
+    test_data = np.stack(test_datas, axis=1)
+    # train/test data: (거래일 수, 종목 수, feature 수)
     # train/test chart data: (거래일 수, 종목 수, 가격 데이터 특징 수)
     if not train:
         train_chart_data = None

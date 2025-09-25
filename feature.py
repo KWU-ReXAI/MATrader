@@ -20,7 +20,7 @@ class Data(metaclass=abc.ABCMeta):
         self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
 
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx-window_size+1:self.end_idx]
+        self.data = self.data[self.start_idx:self.end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size
@@ -54,10 +54,7 @@ class Cluster_Data(Data):
         self.volatility_indicator() #3
         del self.data['date']
 
-        windows_data = []
-        for index in range(self.window_size,len(self.data)+1):
-            data = self.data.iloc[index-self.window_size:index]
-            windows_data.append(np.array(data))
+        windows_data = np.array(self.data)
 
         return windows_data
 
@@ -65,7 +62,7 @@ class Cluster_Data(Data):
         candle_data = self.tmp.copy()
 
         upper = []; lower = []; body= []; colors= []     #upper lenght,lower length,body length,body color
-        for index in range(self.start_idx-self.window_size+1, self.end_idx):
+        for index in range(self.start_idx, self.end_idx):
             body.append([np.abs(self.close[index] - self.open[index])])
             if self.close[index] - self.open[index] > 0: 
                 upper.append([self.high[index] - self.close[index]])
@@ -281,7 +278,7 @@ class Cluster_Data(Data):
             self.data[f"momentum_center {i + 1}"] = lists[i]
 
     def cluster(self,data):
-        data = data[self.start_idx-self.window_size+1:self.end_idx]
+        data = data[self.start_idx:self.end_idx]
         data = self.window_scaler(data)
         return data
 

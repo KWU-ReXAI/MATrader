@@ -3,7 +3,7 @@ from parameters import parameters
 from collections import deque
 
 class Trader:
-	def __init__(self, environment, balance, act_dim, delayed_reward_threshold=.05):
+	def __init__(self, environment, balance, n_agents, delayed_reward_threshold=.05):
 		# 환경
 		self.environment = environment
 
@@ -12,12 +12,12 @@ class Trader:
 
 		# Trader 클래스의 속성
 		self.initial_balance = balance  # 초기 자본금
-		self.act_dim = act_dim # 거래하는 종목 수
-		self.num_actions = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
+		self.n_agents = n_agents # 거래하는 종목 수
+		self.act_dim = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
 		# 포트폴리오 관련
-		self.balance = np.full(act_dim, balance // act_dim, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
-		self.cash = balance % act_dim # 종목 별로 잔고 동등하게 나누고 남은 현금
-		self.num_stocks = np.zeros(act_dim, dtype=np.int64)  # 종목별 보유 주식 수
+		self.balance = np.full(n_agents, balance // n_agents, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
+		self.cash = balance % n_agents # 종목 별로 잔고 동등하게 나누고 남은 현금
+		self.num_stocks = np.zeros(n_agents, dtype=np.int64)  # 종목별 보유 주식 수
 		# 포트폴리오 가치: balance + num_stocks * {현재 주식 가격} * (1-수수료)
 		self.portfolio_value = balance
 		self.prev_portfolio_value = balance
@@ -27,9 +27,9 @@ class Trader:
 		self.num_hold = 0  # 홀딩 횟수
 
 	def reset(self):
-		self.balance = np.full(self.act_dim, self.initial_balance // self.act_dim, dtype=np.int64)
-		self.cash = self.initial_balance % self.act_dim
-		self.num_stocks = np.zeros(self.act_dim, dtype=np.int64)
+		self.balance = np.full(self.n_agents, self.initial_balance // self.n_agents, dtype=np.int64)
+		self.cash = self.initial_balance % self.n_agents
+		self.num_stocks = np.zeros(self.n_agents, dtype=np.int64)
 		self.portfolio_value = self.initial_balance
 		self.prev_portfolio_value = self.initial_balance
 		self.num_buy = 0
@@ -39,7 +39,7 @@ class Trader:
 	def map_action(self, action):
 		# 매매 타입 가지수(매수, 매도, 홀딩)에 따른 범위의 경계값 생성
 		# 예: action이 -3~3이라면 points = [-3, -1, 1, 3]
-		points = np.linspace(-1 * self.num_actions, self.num_actions, self.num_actions + 1)
+		points = np.linspace(-1 * self.act_dim, self.act_dim, self.act_dim + 1)
 		points[-1] += 1e-10 # 경계값 예외 위함
 		# values: 범위에 속하는 위치
 		# 예: -2.8 -> [-3, -1] 사이 => 1번째 범위
@@ -61,7 +61,7 @@ class Trader:
 		return action
 
 	def act(self, action, stock_codes, f, recode):
-		action = self.map_action(action)
+		# action = self.map_action(action)
 		buy_index = np.where(action == parameters.ACTION_BUY)[0]
 		sell_index = np.where(action == parameters.ACTION_SELL)[0]
 		action = self.validate_action(action, buy_index, sell_index)
