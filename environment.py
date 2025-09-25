@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+from data_manager import load_data
 
 class Environment:
     DATE = 0        # 날짜의 위치
