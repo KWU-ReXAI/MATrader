@@ -24,7 +24,7 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
         train_datas = []
     test_chart_datas = []; test_datas = []
 
-    for idx, data in tqdm(enumerate(df_stocks), desc='Data preprocessing'):
+    for idx, data in enumerate(tqdm(df_stocks, desc='Data preprocessing')):
         if train:
             train_feature = Cluster_Data(stocks[idx], data,train_start, train_end, window_size, fmpath, feature_window, train=True)
             train_data = train_feature.load_data()
