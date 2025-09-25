@@ -43,7 +43,8 @@ class TD3_Agent:
 		# parameters
 		self.window_size = window_size
 		self.test = test
-		self.act_dim = num_of_stock
+		self.act_dim = num_of_stock * parameters.NUM_ACTIONS
+		self.n_stock = num_of_stock
 		self.inp_dim = self.test_data.shape[2] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
@@ -152,10 +153,10 @@ class TD3_Agent:
 				# 매매 타입 3개일 때만 적용 가능!
 				imitation_action = np.zeros(self.act_dim)
 				for stock, curr_price in enumerate(curr_prices):
-					if next_prices is None: imitation_action[stock] = 0 # 홀딩
-					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock] = -2 # 매수
-					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock] = 2 # 매도
-					else : imitation_action[stock] = 0
+					if next_prices is None: imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_HOLD] = 1 # 홀딩
+					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_BUY] = 1 # 매수
+					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_SELL] = 1 # 매도
+					else : imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_HOLD] = 1
 
 				# 행동 -> reward(from trading), next_state, done(from env)
 				_, reward = trader.act(action, self.stock_codes, f, recode)

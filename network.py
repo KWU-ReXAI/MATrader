@@ -39,7 +39,6 @@ class Actor(nn.Module):
 			nn.Linear(units, units),
 			nn.ReLU(),
 			nn.Linear(units, act_dim),
-			nn.Tanh()
 		)
 		
 		# (B) Price Head: 은닉층 + 1차원 회귀 출력
