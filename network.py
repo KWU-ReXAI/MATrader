@@ -45,7 +45,7 @@ class Actor(nn.Module):
 		self.price_head = nn.Sequential(
 			nn.Linear(units, units),
 			nn.ReLU(),
-			nn.Linear(units, act_dim) # 예측해야 하는 가격이 여러개
+			nn.Linear(units, act_dim // parameters.NUM_ACTIONS) # 예측해야 하는 가격이 여러개
 		)
 		
 	def forward(self, x):

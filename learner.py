@@ -103,7 +103,7 @@ class TD3_Agent:
 				policy[index][i] = np.clip(policy[index][i], -1.0 * parameters.NUM_ACTIONS, 1.0 * parameters.NUM_ACTIONS)
 			return policy
 
-	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,start_epsilon=0.3):
+	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,update_noise=0.7, start_epsilon=0.3):
 		# path setting
 		csv_path = os.path.join(self.output_path, "_action_history_train_"+ str(reward_n_step)+".csv")
 		plt_path = os.path.join(self.output_path,"_plt_train_" + str(reward_n_step))
@@ -136,7 +136,6 @@ class TD3_Agent:
 
 			self.network.copy_weights()
 			next_state, done = environment.build_state() # 초기 state: next_state
-			update_noise = 0.7
 			while True:				
 				# 환경에서 가격 얻기
 				curr_prices = environment.curr_price()
