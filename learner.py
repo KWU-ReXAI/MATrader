@@ -373,4 +373,3 @@ class TD3_Agent:
 			# 6. 다음 1분까지 대기
 			logging.info("Waiting for the next minute...")
 			time.sleep(60)
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲

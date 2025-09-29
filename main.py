@@ -144,9 +144,6 @@ if __name__ == '__main__':
 				api_handler = None
 			common_params['api_handler'] = api_handler
 
-
-
-
 			learner = TD3_Agent(**{**common_params, 'output_path': quarter_path, 'lr': args.lr, 'test': args.test, 'phase': row.phase,
 						'testNum': row.testNum, 'quarter': row.quarter, 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
 						'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,

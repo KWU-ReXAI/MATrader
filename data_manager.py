@@ -89,20 +89,18 @@ def load_realtime_data(api_handler: KISApiHandler, stocks: list, fmpath: str, wi
             continue
 
         # 데이터프레임 컬럼명 맞추기 및 전처리
-        df.rename(columns={
+        """df.rename(columns={
             "stck_bsop_date": "date",
             "stck_oprc": "open",
             "stck_hgpr": "high",
             "stck_lwpr": "low",
             "stck_prpr": "close",
             "cntg_vol": "volume"
-        }, inplace=True)
-        # 'adj close'는 'close'와 동일하게 설정
-        df['adj close'] = df['close']
+        }, inplace=True)"""
         # 필요한 컬럼만 선택
-        df = df[['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']]
+        df = df[['date', 'open', 'high', 'low', 'close', 'volume']]
         # 데이터 타입을 숫자로 변경
-        for col in ['open', 'high', 'low', 'close', 'adj close', 'volume']:
+        for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col])
 
         # feature.py에 데이터를 전달하기 위한 준비
