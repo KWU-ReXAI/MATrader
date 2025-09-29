@@ -167,26 +167,6 @@ class TD3_Agent:
 					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock] = 2 # 매도
 					else : imitation_action[stock] = 0
 
-				"""if environment.idx >= 20:
-					for stock_idx in range(self.act_dim):
-						# 이동평균 계산에 필요한 과거 종가 데이터 추출 (현재 포함 21일치)
-						# chart_data shape: (거래일, 종목수, 피처), 종가(PRICE_IDX)는 4번 인덱스
-						prices = environment.chart_data[environment.idx-20 : environment.idx+1, stock_idx, 4].astype('double')
-
-						# ta-lib으로 단기(5일), 장기(20일) 이동평균 시리즈 계산
-						short_ma = talib.SMA(prices, timeperiod=5)
-						long_ma = talib.SMA(prices, timeperiod=20)
-
-						# 교차를 확인하기 위해 현재 값(-1)과 직전 값(-2)을 사용
-						# Golden Cross (매수): 이전에는 단기<장기, 현재는 단기>장기
-						if short_ma[-2] < long_ma[-2] and short_ma[-1] > long_ma[-1]:
-							imitation_action[stock_idx] = -2  # 매수 신호
-						# Dead Cross (매도): 이전에는 단기>장기, 현재는 단기<장기
-						elif short_ma[-2] > long_ma[-2] and short_ma[-1] < long_ma[-1]:
-							imitation_action[stock_idx] = 2  # 매도 신호
-						else:
-							imitation_action[stock_idx] = 0  # 홀딩"""
-
 				# 행동 -> reward(from trading), next_state, done(from env)
 				_, reward = trader.act(action, self.stock_codes, f, recode)
 
@@ -287,89 +267,101 @@ class TD3_Agent:
 		return trader.portfolio_value
 
 	def trade_realtime(self):
-		"""
-        실시간으로 주식 데이터를 받아 모델의 예측에 따라 자동으로 매매를 수행합니다.
-        """
-		logging.info("Starting realtime trading...")
+		logging.info("실시간 자동매매를 시작합니다...")
 
-		# 1. 실시간 환경 구성
+		# 1. 실시간 환경 및 트레이더 구성
 		environment = RealtimeEnvironment(
 			api_handler=self.api,
 			stock_codes=self.stock_codes,
-			fmpath=os.path.join(self.output_path, 'feature_model'),  # 학습된 피처 모델 경로
+            # feature.py에서 사용할 저장된 모델(PCA, FCM)이 있는 경로를 지정합니다.
+			# policy_network_path가 저장된 폴더를 사용합니다.
+			fmpath=os.path.dirname(self.policy_network_path),
 			window_size=self.window_size,
-			feature_window=1  # feature.py의 기본값과 동일하게 설정
+			feature_window=1
 		)
+		# Trader 클래스는 잔고 관리 및 action 변환 등 보조 역할로 사용합니다.
+		trader = Trader(environment, self.balance, self.act_dim)
 
-		# 2. 매매 루프 시작 (장 시작 ~ 장 마감)
+		# 2. 메인 루프: 프로그램이 중지될 때까지 1분마다 반복
 		while True:
+			current_time = datetime.now()
+			is_market_open = (current_time.time() >= datetime.strptime("09:01", "%H:%M").time() and
+							  current_time.time() <= datetime.strptime("15:20", "%H:%M").time()) and \
+							  current_time.weekday() < 5
+
+			if not is_market_open:
+				logging.info(f"현재 시각({current_time.strftime('%H:%M:%S')})은 장 운영 시간이 아닙니다. 10초 후 다시 확인합니다.")
+				time.sleep(10)
+				continue
+
 			try:
-				# 현재 시간 확인
-				now = datetime.now().time()
-
-				# 장 운영 시간: 09:00 ~ 15:30
-				if now < datetime.strptime("09:00", "%H:%M").time() or now > datetime.strptime("15:30", "%H:%M").time():
-					logging.info("Market is closed. Waiting...")
-					time.sleep(60)
-					continue
-
-				# 3. 최신 시장 상태 받아오기
+				# 4. [데이터 수집/전처리] 실시간 데이터로 현재 상태(state) 빌드
+				logging.info("최신 분봉 데이터로 state를 구성합니다...")
 				state, done = environment.build_state()
-				if done:
-					logging.error("Failed to build state from market data. Retrying in 1 minute.")
-					time.sleep(60)
+				if done or state is None:
+					logging.warning("State 구성에 실패했습니다. 10초 후 재시도합니다.")
+					time.sleep(10)
 					continue
 
-				# 4. 모델을 통해 행동 결정
+				# 5. [액션 출력] 학습된 모델로 행동 결정
+				logging.info("모델 예측을 통해 행동을 결정합니다...")
 				policy = self.network.actor_predict(np.array(state))
 				action = policy[0]
-				logging.info(f"Model action policy: {action}")
+				mapped_action = trader.map_action(action) # Raw action을 매수/매도/홀드로 변환
+				logging.info(f"모델 출력 Raw Action: {action.round(2)}")
+				logging.info(f"변환된 Action (매수:{parameters.ACTION_BUY}, 홀드:{parameters.ACTION_HOLD}, 매도:{parameters.ACTION_SELL}): {mapped_action}")
 
-				# 5. 행동에 따른 주문 실행
-				current_prices = environment.curr_price()
-				account_balance = self.api.get_account_balance()
-
-				if account_balance is None:
-					logging.error("Failed to get account balance.")
-					time.sleep(60)
+				# 6. [거래 실행] 결정된 행동에 따라 실제 매매 주문
+				account_info = self.api.get_account_balance()
+				if account_info is None:
+					logging.error("계좌 정보를 가져올 수 없습니다. 10초 후 재시도합니다.")
+					time.sleep(10)
 					continue
 
-				cash_per_stock = account_balance['deposit'] // len(self.stock_codes)
+				logging.info(f"현재 예수금: {account_info['deposit']:,}원")
 
-				# 보유 주식 정보를 dictionary 형태로 변환하여 쉽게 접근
-				owned_stocks = {stock['iscd']: stock for stock in account_balance.get('holdings', [])}
+				# Trader 객체에 현재 보유 주식 수를 실제 계좌 기준으로 업데이트
+				for stock_idx, stock_code in enumerate(self.stock_codes):
+					holding = next((item for item in account_info['holdings'] if item['iscd'] == stock_code), None) # iscd: 보유 종목 코드
+					trader.num_stocks[stock_idx] = holding['qty'] if holding else 0 # qty: 보유 주식 수
+                    # 그니깐 account_info를 가져와서 그걸 trader 객체에 정보를 업데이트하는겨
 
-				for i, stock_code in enumerate(self.stock_codes):
-					decision = action[i]
-					current_price = int(current_prices[i])
+				curr_prices = environment.curr_price()
+				if curr_prices is None:
+					logging.error("현재 가격 정보를 가져올 수 없습니다. 10초 후 재시도합니다.")
+					time.sleep(10)
+					continue
 
-					# 매수 결정 (action 값이 특정 임계값 이상일 때)
-					if decision > 1.5:  # 매수 강도 임계값 (조정 가능)
-						if cash_per_stock > current_price:
-							qty_to_buy = cash_per_stock // current_price
-							logging.info(f"Attempting to BUY {qty_to_buy} shares of {stock_code} at {current_price}")
-							response = self.api.order_cash(stock_code, qty_to_buy, current_price, "02")  # "02": 매수
-							logging.info(f"BUY Order Response: {response}")
+				# 각 종목별로 결정된 action에 따라 주문을 실행합니다.
+				for idx, order in enumerate(mapped_action):
+					stock_code = self.stock_codes[idx]
+
+					if order == parameters.ACTION_BUY: # 매수
+						if account_info['deposit'] >= curr_prices[idx]: # 잔고를 확인해서 idx에 해당하는 종목을 최소 한 개라도 살 수 있는지 확인
+							budget = account_info['deposit'] // len(self.stock_codes) # 전체 예산을 종목의 개수만큼 나누기
+							quantity = int(budget // curr_prices[idx]) # 가능한 개수 계산
+							if quantity > 0: # 만약 1개라도 살 수 있다면
+								logging.info(f"[{stock_code} ({curr_prices[idx]:,}원)] {quantity}주 매수 주문을 시도합니다.")
+								res = self.api.order_cash(stock_code, quantity, 0, '02', order_type='01') # 시장가 매수
+								logging.info(f" >> 주문 결과: {res}")
 						else:
-							logging.info(f"Not enough cash to buy {stock_code}.")
+							logging.info(f"[{stock_code}] 매수 신호가 발생했으나, 예수금이 부족합니다.") # 잔고가 부족하다면 패스
 
-					# 매도 결정 (action 값이 특정 임계값 이하일 때)
-					elif decision < -1.5:  # 매도 강도 임계값 (조정 가능)
-						if stock_code in owned_stocks:
-							qty_to_sell = owned_stocks[stock_code]['qty']
-							logging.info(f"Attempting to SELL {qty_to_sell} shares of {stock_code} at {current_price}")
-							response = self.api.order_cash(stock_code, qty_to_sell, current_price, "01")  # "01": 매도
-							logging.info(f"SELL Order Response: {response}")
+					elif order == parameters.ACTION_SELL: #매도해보자잉
+						quantity_to_sell = trader.num_stocks[idx] # 팔 것의 양
+						if quantity_to_sell > 0: # 팔 것이 하나라도 있다면
+							logging.info(f"[{stock_code} ({curr_prices[idx]:,}원)] 보유 수량 {quantity_to_sell}주 매도 주문을 시도합니다.")
+							res = self.api.order_cash(stock_code, quantity_to_sell, 0, '01', order_type='01') # 시장가 매도
+							logging.info(f" >> 주문 결과: {res}")
 						else:
-							logging.info(f"No shares of {stock_code} to sell.")
-
-					# 홀딩
-					else:
-						logging.info(f"Holding {stock_code}.")
+							logging.info(f"[{stock_code}] 매도 신호가 발생했으나, 보유 주식이 없습니다.")
 
 			except Exception as e:
-				logging.error(f"An error occurred in the trading loop: {e}", exc_info=True)
+				logging.error(f"실시간 거래 메인 루프 중 오류 발생: {e}", exc_info=True)
 
-			# 6. 다음 1분까지 대기
-			logging.info("Waiting for the next minute...")
-			time.sleep(60)
+			finally:
+				# 7. [대기] 다음 분봉이 생성될 때까지 대기
+				now = datetime.now()
+				seconds_to_wait = 60 - now.second # 다음 분 정각까지 남은 시간
+				logging.info(f"모든 종목 확인 완료. 다음 분봉 확인까지 {seconds_to_wait}초 대기합니다.\n")
+				time.sleep(seconds_to_wait)

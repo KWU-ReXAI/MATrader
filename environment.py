@@ -125,10 +125,6 @@ class RealtimeEnvironment:
 
         self.chart_data = None  # 현재 시세 데이터를 저장할 변수
 
-    def reset(self):
-        # 실시간 환경에서는 reset이 별다른 동작을 하지 않습니다.
-        self.chart_data = None
-
     def build_state(self):
         """
         data_manager를 통해 실시간 데이터를 가져와 모델의 입력(state)으로 변환합니다.
@@ -145,16 +141,12 @@ class RealtimeEnvironment:
         if state is None:
             return None, True  # 데이터를 가져오지 못하면 종료 신호(True) 반환
 
-        # 현재 가격 정보를 클래스 내에 저장
         self.chart_data = chart_data
 
         # state와 종료 여부(False) 반환
         return state, False
 
     def curr_price(self):
-        """
-        build_state가 호출될 때 저장해둔 최신 가격 정보를 반환합니다.
-        """
         if self.chart_data is not None:
             # (1, num_stocks, num_features) -> (num_stocks, num_features)
             chart_data_squeezed = np.squeeze(self.chart_data, axis=0)

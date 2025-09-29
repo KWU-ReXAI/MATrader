@@ -7,15 +7,19 @@ import pandas as pd
 
 
 class KISApiHandler:
-    def __init__(self, app_key, app_secret, acnt_no, is_mock=True):
-        self.url_base = 'https://openapivts.koreainvestment.com:29443' if is_mock else 'https://openapi.koreainvestment.com:9443'
+    def __init__(self, app_key, app_secret, acnt_no, is_mock=False):
+        self.url_base = (
+            'https://openapivts.koreainvestment.com:29443' if is_mock
+            else 'https://openapi.koreainvestment.com:9443'
+        )
         self.app_key, self.app_secret, self.acnt_no = app_key, app_secret, acnt_no
         self.access_token, self.token_expire_time = "", None
         self.headers = {"content-type": "application/json"}
+        print(f"[KIS] ENV={'MOCK' if is_mock else 'REAL'} URL={self.url_base}")  # ← 확인 로그
 
     def get_access_token(self):
         if self.access_token and self.token_expire_time and datetime.now() < self.token_expire_time:
-            return
+            return self.access_token  # ← 반드시 반환
         logging.info("인증 토큰 발급 요청")
         body = {"grant_type": "client_credentials", "appkey": self.app_key, "appsecret": self.app_secret}
         res = requests.post(f'{self.url_base}/oauth2/tokenP', headers=self.headers, data=json.dumps(body))
@@ -25,6 +29,7 @@ class KISApiHandler:
         token_data = res.json()
         self.access_token = token_data['access_token']
         self.token_expire_time = datetime.now() + timedelta(seconds=token_data.get('expires_in', 86400) - 300)
+        return self.access_token  # ← 반드시 반환
 
     def get_hash_key(self, data):
         path = "/uapi/hashkey"
@@ -73,14 +78,14 @@ class KISApiHandler:
         return int(res['output']['stck_prpr']) if res and res.get('rt_cd') == '0' else None
 
     ### 분봉
-    # ▼▼▼▼▼ [수정 1] @staticmethod 추가 ▼▼▼▼▼
-    @staticmethod
-    def _prev_hhmmss(hhmmss: str) -> str:
+    def _prev_hhmmss(self, hhmmss: str) -> str:
         t = datetime.strptime(hhmmss, "%H%M%S")
         t -= timedelta(seconds=1)
         return t.strftime("%H%M%S")
 
     def get_minute_candles(self, code: str, base_time: str | None = None) -> pd.DataFrame:
+        self.get_access_token()
+
         if base_time is None:
             base_time = datetime.now().strftime("%H%M%S")
 
@@ -106,7 +111,6 @@ class KISApiHandler:
         last_exc = None
         for i in range(3):
             try:
-                self.get_access_token()  # get_minute_candles_all_today 에서 호출되지 않으므로 토큰 갱신 로직 추가
                 r = requests.get(url, headers=headers, params=params, timeout=10)
                 if r.status_code >= 500:
                     raise requests.HTTPError(f"{r.status_code} {r.reason}")
@@ -136,7 +140,7 @@ class KISApiHandler:
                 return df
             except Exception as e:
                 last_exc = e
-                time.sleep(0.35 * (i + 1))
+                time.sleep(0.35 * (i + 1))  # 0.35s, 0.7s, 1.05s
         raise last_exc
 
     def get_minute_candles_all_today(self, code: str, sleep_sec: float = 0.25, max_pages: int = 80) -> pd.DataFrame:
@@ -149,14 +153,14 @@ class KISApiHandler:
                 break
             all_df = pd.concat([all_df, df], ignore_index=True)
 
+            # 다음 페이지 기준시각: 이번 페이지 '가장 오래된 시각 - 1초'
             first_time = str(df.iloc[0]["time"])
-            # ▼▼▼▼▼ [수정 2] self. 추가 ▼▼▼▼▼
             next_time = self._prev_hhmmss(first_time)
-
+            # 더 내려갈 수 없거나 30건 미만이면 종료
             if next_time == base_time or len(df) < 30:
                 break
             base_time = next_time
-            time.sleep(sleep_sec)
+            time.sleep(sleep_sec)  # 호출 간격
 
         if not all_df.empty:
             all_df.drop_duplicates(subset=["date", "time"], inplace=True)
@@ -164,7 +168,7 @@ class KISApiHandler:
             all_df.reset_index(drop=True, inplace=True)
         return all_df
 
-    ### (이하 코드는 기존과 동일)
+    ###
 
     def get_period_data(self, iscd):
         dt_now = datetime.now()

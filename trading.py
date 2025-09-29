@@ -113,3 +113,4 @@ class Trader:
 		self.environment.idx += 1
 		
 		return reward, future_reward
+
