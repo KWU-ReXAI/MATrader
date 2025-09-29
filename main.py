@@ -27,7 +27,8 @@ if __name__ == '__main__':
 	parser.add_argument('--feature_window', type=int, default=1)
 	parser.add_argument('--num_step', type=int, default=2)
 	parser.add_argument('--start_epsilon', type=float, default=0.02)
-	parser.add_argument('--noise', type=float, default=0.7)
+	parser.add_argument('--noise', type=float, default=0.3)
+	parser.add_argument('--update_noise', type=float, default=0.1)
 	args = parser.parse_args()
 
 	output_path = os.path.join(parameters.BASE_DIR,
@@ -98,5 +99,5 @@ if __name__ == '__main__':
 						'testNum': row.testNum, 'quarter': row.quarter, 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
 						'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
 						'window_size': args.window_size})
-			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
+			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.update_noise, args.start_epsilon)
 			learner.backtest(args.num_step)

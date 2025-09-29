@@ -34,19 +34,18 @@ class Actor(nn.Module):
 		# LSTM layer (batch_first=True로 입력 shape을 (batch, seq, feature)로 가정)
 		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
 		
-		# (A) Policy Head: 은닉층 + softmax 출력
+		# (A) Policy Head: 은닉층
 		self.actor_head = nn.Sequential(
 			nn.Linear(units, units),
 			nn.ReLU(),
-			nn.Linear(units, act_dim),
-			nn.Tanh()
+			nn.Linear(units, act_dim)
 		)
 		
 		# (B) Price Head: 은닉층 + 1차원 회귀 출력
 		self.price_head = nn.Sequential(
 			nn.Linear(units, units),
 			nn.ReLU(),
-			nn.Linear(units, act_dim) # 예측해야 하는 가격이 여러개
+			nn.Linear(units, act_dim // parameters.NUM_ACTIONS) # 예측해야 하는 가격이 여러개
 		)
 		
 	def forward(self, x):
@@ -60,7 +59,7 @@ class Actor(nn.Module):
 		lstm_out = lstm_out[:, -1, :]      # (batch, units)
 		
 		# 두 개의 헤드
-		policy = self.actor_head(lstm_out) * parameters.NUM_ACTIONS   # (batch, act_dim), -1~1에서 -3~3으로 범위 변화
+		policy = self.actor_head(lstm_out)   # (batch, act_dim)
 		price = self.price_head(lstm_out)    # (batch, 1)
 		
 		return policy, price

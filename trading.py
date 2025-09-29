@@ -12,12 +12,12 @@ class Trader:
 
 		# Trader 클래스의 속성
 		self.initial_balance = balance  # 초기 자본금
-		self.act_dim = act_dim # 거래하는 종목 수
-		self.num_actions = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
+		self.act_dim = act_dim # 종목 수 * 액션 수
+		self.n_stocks = act_dim // parameters.NUM_ACTIONS # 종목 수
 		# 포트폴리오 관련
-		self.balance = np.full(act_dim, balance // act_dim, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
-		self.cash = balance % act_dim # 종목 별로 잔고 동등하게 나누고 남은 현금
-		self.num_stocks = np.zeros(act_dim, dtype=np.int64)  # 종목별 보유 주식 수
+		self.balance = np.full(self.n_stocks, balance // self.n_stocks, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
+		self.cash = balance % self.n_stocks # 종목 별로 잔고 동등하게 나누고 남은 현금
+		self.num_stocks = np.zeros(self.n_stocks, dtype=np.int64)  # 종목별 보유 주식 수
 		# 포트폴리오 가치: balance + num_stocks * {현재 주식 가격} * (1-수수료)
 		self.portfolio_value = balance
 		self.prev_portfolio_value = balance
@@ -27,9 +27,9 @@ class Trader:
 		self.num_hold = 0  # 홀딩 횟수
 
 	def reset(self):
-		self.balance = np.full(self.act_dim, self.initial_balance // self.act_dim, dtype=np.int64)
-		self.cash = self.initial_balance % self.act_dim
-		self.num_stocks = np.zeros(self.act_dim, dtype=np.int64)
+		self.balance = np.full(self.n_stocks, self.initial_balance // self.n_stocks, dtype=np.int64)
+		self.cash = self.initial_balance % self.n_stocks
+		self.num_stocks = np.zeros(self.n_stocks, dtype=np.int64)
 		self.portfolio_value = self.initial_balance
 		self.prev_portfolio_value = self.initial_balance
 		self.num_buy = 0
@@ -37,15 +37,9 @@ class Trader:
 		self.num_hold = 0
 
 	def map_action(self, action):
-		# 매매 타입 가지수(매수, 매도, 홀딩)에 따른 범위의 경계값 생성
-		# 예: action이 -3~3이라면 points = [-3, -1, 1, 3]
-		points = np.linspace(-1 * self.num_actions, self.num_actions, self.num_actions + 1)
-		points[-1] += 1e-10 # 경계값 예외 위함
-		# values: 범위에 속하는 위치
-		# 예: -2.8 -> [-3, -1] 사이 => 1번째 범위
-		values = np.digitize(action, points)
-		values -= 1
-		return values
+		scores_per_stock = action.reshape(self.n_stocks, parameters.NUM_ACTIONS)
+		discrete_actions = np.argmax(scores_per_stock, axis=1)
+		return discrete_actions
 
 	def validate_action(self, action, buy_index, sell_index):
 		if len(buy_index) > 0:
