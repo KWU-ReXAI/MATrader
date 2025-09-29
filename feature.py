@@ -10,17 +10,13 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "0"
 np.random.seed(42)
 class Data(metaclass=abc.ABCMeta):
-    def __init__(self, stock, data, start, end, window_size = 1, fmpath = None, feature_window=1, train=True):
+    def __init__(self, stock, data, window_size = 1, fmpath = None, feature_window=1, train=True):
         self.open = data['open']; self.close = data['close']; self.high = data['high']
         self.low = data['low']; self.adj_close = data['adj close']; self.volume = data['volume']
         self.original_data = pd.DataFrame({"date":data['date']})
         self.train = train; self.stock = stock
 
-        self.start_idx = len(self.original_data[(self.original_data['date'] < str(start))])
-        self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
-
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx-window_size+1:self.end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size
@@ -28,7 +24,7 @@ class Data(metaclass=abc.ABCMeta):
         if feature_window < window_size : self.feature_window = window_size
         self.fmpath = fmpath
     @abc.abstractmethod
-    def load_data(self):
+    def load_data(self, start, end, realtime=False):
         pass
     @abc.abstractmethod
     def setting(self):
@@ -38,11 +34,21 @@ from sklearn.decomposition import PCA
 class Cluster_Data(Data):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
-        self.tmp = self.data.copy()
+        self.start_idx = None
+        self.end_idx = None
+        self.tmp = None
         self.n_cluster = 20
         self.pca_dim = 8
 
-    def load_data(self):
+    def load_data(self, start, end, realtime=False):
+        if realtime:
+            self.start_idx = len(self.data) - 1
+            self.end_idx = len(self.data)
+        else:
+            self.start_idx = len(self.data[(self.data['date'] < str(start))])
+            self.end_idx = len(self.data[(self.data['date'] <= str(end))])
+        self.data = self.data[self.start_idx - self.window_size + 1:self.end_idx]
+        self.tmp = self.data.copy()
         data = self.setting()
         return np.array(data)
 
