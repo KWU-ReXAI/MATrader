@@ -92,7 +92,7 @@ class TD3_Agent:
 			for i in range(act_size):
 				noise = np.random.normal(0,exploration_noise,1)
 				policy[index][i] += noise
-				policy[index][i] = np.clip(policy[index][i],-1.0 * parameters.NUM_ACTIONS,1.0 * parameters.NUM_ACTIONS)
+				policy[index][i] = np.clip(policy[index][i],-1.0,1.0)
 			return policy
 	def plus_update_noise(self,policy,exploration_noise,act_size):
 		for index in range(len(policy)):
@@ -100,7 +100,7 @@ class TD3_Agent:
 				noise = np.random.normal(0,exploration_noise,1)
 				noise = np.clip(noise,-1,1)
 				policy[index][i] += noise
-				policy[index][i] = np.clip(policy[index][i], -1.0 * parameters.NUM_ACTIONS, 1.0 * parameters.NUM_ACTIONS)
+				policy[index][i] = np.clip(policy[index][i], -1.0, 1.0)
 			return policy
 
 	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,update_noise=0.7, start_epsilon=0.3):
