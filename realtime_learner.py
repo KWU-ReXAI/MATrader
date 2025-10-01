@@ -7,6 +7,7 @@ from network import TD3_network
 from feature import Cluster_Data
 from parameters import parameters
 from kis_api import KISApiHandler
+from phase import phase2quarter
 
 FEATURES = 26
 
@@ -70,8 +71,8 @@ class RealTimeTrader:
     def map_holdings(self, holdings, stock):
         for holding in holdings:
             if holding['iscd'] == stock:
-                return holding['qty'], holding['cur_price']
-        return 0, self.api.get_current_price(stock)
+                return holding['qty']
+        return 0
 
     def act(self, action):
         action = self.map_action(action)
@@ -84,24 +85,26 @@ class RealTimeTrader:
 
         # 주식별 매매
         for stock, stock_action in enumerate(action):
-            trading_unit, curr_price = self.map_holdings(holdings, self.stocks[stock])
+            trading_unit = self.map_holdings(holdings, self.stocks[stock])
             # 매수
             if stock_action == parameters.ACTION_BUY:
-                trading_unit = int(self.balance[stock] // (curr_price * (1 + self.charge)))
+                curr_price, _ = self.api.get_asking_price(self.stocks[stock])
+                trading_unit = int(self.balance[stock] // (curr_price * (1 + self.charge))) if curr_price else 0
                 if trading_unit <= 0: action[stock] = parameters.ACTION_HOLD
                 else:
                     res = self.api.order_cash(self.stocks[stock], trading_unit, curr_price, '02', order_type='00')
                     if res and res.get('rt_cd') == '0':
-                        print('매수 주문 완료')
+                        print(f'{self.stocks[stock]} 매수 주문 접수')
                         self.balance[stock] -= curr_price * trading_unit * (1 + self.charge)	# 보유 현금을 갱신
                     else: action[stock] = parameters.ACTION_HOLD
             # 매도
             elif stock_action == parameters.ACTION_SELL:
-                if trading_unit <= 0: action[stock] = parameters.ACTION_HOLD
+                _, curr_price = self.api.get_asking_price(self.stocks[stock])
+                if trading_unit <= 0 or not curr_price: action[stock] = parameters.ACTION_HOLD
                 else:
                     res = self.api.order_cash(self.stocks[stock], trading_unit, curr_price, '01', order_type='00')
                     if res and res.get('rt_cd') == '0':
-                        print('매도 주문 완료')
+                        print(f'{self.stocks[stock]} 매도 주문 접수')
                         self.balance[stock] += curr_price * trading_unit * (1 - self.charge - self.tax)	# 보유 현금을 갱신
                     else: action[stock] = parameters.ACTION_HOLD
 
@@ -137,27 +140,28 @@ class RealTimeAgent:
             policy = self.network.actor_predict(np.array(state))
             action = policy[0]
             real_actions = trader.act(action)
-            for idx, real_action in enumerate(real_actions):
-                print(f'Stock: {self.stock_codes[idx]}, Action: {real_action}')
+            print('60초간 대기...')
             time.sleep(60)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--stocks', nargs='+')
+    parser.add_argument('--stock_dir', type=str)
     parser.add_argument('--model_dir', default=' ')
     parser.add_argument('--window_size', default=10)
     parser.add_argument('--model_version', default=29)
     args = parser.parse_args()
 
     dotenv.load_dotenv()
-    load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-        f'phase_1_1', '2022_Q1', 'value_{}'.format(args.model_version))
-    load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-        f'phase_1_1', '2022_Q1', 'policy_{}'.format(args.model_version))
-    feature_model_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-        f'phase_1_1', '2022_Q1', 'feature_model')
+    quarters_df = phase2quarter(args.stock_dir)
+    for row in quarters_df.itertuples():
+        load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+            f'phase_{row.phase}_{row.testNum}', row.quarter, 'value_{}'.format(args.model_version))
+        load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+            f'phase_{row.phase}_{row.testNum}', row.quarter, 'policy_{}'.format(args.model_version))
+        feature_model_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+            f'phase_{row.phase}_{row.testNum}', row.quarter, 'feature_model')
 
-    learner = RealTimeAgent(**{'stock_codes': args.stocks, 'fmpath': feature_model_path,
-                'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-                'window_size': args.window_size})
-    learner.realtime_trade(os.getenv("APP_KEY"), os.getenv("APP_SECRET"), os.getenv("ACNT_NO"))
+        learner = RealTimeAgent(**{'stock_codes': row.stock_codes, 'fmpath': feature_model_path,
+                    'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
+                    'window_size': args.window_size})
+        learner.realtime_trade(os.getenv("APP_KEY"), os.getenv("APP_SECRET"), os.getenv("ACNT_NO"))

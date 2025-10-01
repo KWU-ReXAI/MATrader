@@ -70,6 +70,12 @@ class KISApiHandler:
         params = {'FID_COND_MRKT_DIV_CODE': 'J', 'FID_INPUT_ISCD': iscd}
         res = self.api_request('get', path, 'FHKST01010100', params=params)
         return int(res['output']['stck_prpr']) if res and res.get('rt_cd') == '0' else None
+
+    def get_asking_price(self, iscd):
+        path = '/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn'
+        params = {'FID_COND_MRKT_DIV_CODE': 'J', 'FID_INPUT_ISCD': iscd}
+        res = self.api_request('get', path, 'FHKST01010200', params=params)
+        return (int(res['output1']['askp1']), int(res['output1']['bidp1'])) if res and res.get('rt_cd') == '0' else (None, None)
     
     ### 분봉
     def _prev_hhmmss(self, hhmmss: str) -> str:
@@ -206,7 +212,7 @@ class KISApiHandler:
                 holdings = res.get('output1', [])
 
                 balance_data = {
-                    'deposit': int(summary.get('dnca_tot_amt', 0)),
+                    'deposit': int(summary.get('prvs_rcdl_excc_amt', 0)),
                     'total_eval': int(summary.get('tot_evlu_amt', 0)),
                     'holdings': []
                 }

@@ -20,7 +20,7 @@ class MultiStockFetcher:
             is_mock=is_mock  # ← 실전: False
         )
 
-    def get_minute_data_one_day(self, stock_code: str, ymd: str, start_time: str = "000000"):
+    def get_minute_data_one_day(self, stock_code: str, ymd: str):
         # 1) 토큰을 변수로 받되, 방어적으로 self.api.access_token 재확인
         token = self.api.get_access_token() or self.api.access_token
 
@@ -166,7 +166,7 @@ class MultiStockFetcher:
 if __name__ == "__main__":
     # 예시
     dotenv.load_dotenv()
-    start_date = datetime.date(2025, 9, 25)
+    start_date = datetime.date(2025, 9, 23)
     end_date   = datetime.date(2025, 9, 30)
     stock_codes = ['001740', '128940']
 
