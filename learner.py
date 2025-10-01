@@ -51,7 +51,8 @@ class TD3_Agent:
 		# parameters
 		self.window_size = window_size
 		self.test = test
-		self.act_dim = num_of_stock
+		self.act_dim = num_of_stock * parameters.NUM_ACTIONS
+		self.n_stock = num_of_stock
 		self.inp_dim = self.test_data.shape[2] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
@@ -101,7 +102,7 @@ class TD3_Agent:
 			for i in range(act_size):
 				noise = np.random.normal(0,exploration_noise,1)
 				policy[index][i] += noise
-				policy[index][i] = np.clip(policy[index][i],-1.0 * parameters.NUM_ACTIONS,1.0 * parameters.NUM_ACTIONS)
+				policy[index][i] = np.clip(policy[index][i],-1.0,1.0)
 			return policy
 	def plus_update_noise(self,policy,exploration_noise,act_size):
 		for index in range(len(policy)):
@@ -109,10 +110,10 @@ class TD3_Agent:
 				noise = np.random.normal(0,exploration_noise,1)
 				noise = np.clip(noise,-1,1)
 				policy[index][i] += noise
-				policy[index][i] = np.clip(policy[index][i], -1.0 * parameters.NUM_ACTIONS, 1.0 * parameters.NUM_ACTIONS)
+				policy[index][i] = np.clip(policy[index][i], -1.0, 1.0)
 			return policy
 
-	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,start_epsilon=0.3):
+	def run(self,max_episode=100, reward_n_step = 1,noise=0.001,update_noise=0.7, start_epsilon=0.3):
 		# path setting
 		csv_path = os.path.join(self.output_path, "_action_history_train_"+ str(reward_n_step)+".csv")
 		plt_path = os.path.join(self.output_path,"_plt_train_" + str(reward_n_step))
@@ -145,7 +146,6 @@ class TD3_Agent:
 
 			self.network.copy_weights()
 			next_state, done = environment.build_state() # 초기 state: next_state
-			update_noise = 0.7
 			while True:				
 				# 환경에서 가격 얻기
 				curr_prices = environment.curr_price()
@@ -162,10 +162,10 @@ class TD3_Agent:
 				# 매매 타입 3개일 때만 적용 가능!
 				imitation_action = np.zeros(self.act_dim)
 				for stock, curr_price in enumerate(curr_prices):
-					if next_prices is None: imitation_action[stock] = 0 # 홀딩
-					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock] = -2 # 매수
-					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock] = 2 # 매도
-					else : imitation_action[stock] = 0
+					if next_prices is None: imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_HOLD] = 1 # 홀딩
+					elif next_prices[stock] > curr_price * (1+stock_rate): imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_BUY] = 1 # 매수
+					elif next_prices[stock] < curr_price * (1-stock_rate): imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_SELL] = 1 # 매도
+					else : imitation_action[stock * parameters.NUM_ACTIONS + parameters.ACTION_HOLD] = 1
 
 				# 행동 -> reward(from trading), next_state, done(from env)
 				_, reward = trader.act(action, self.stock_codes, f, recode)

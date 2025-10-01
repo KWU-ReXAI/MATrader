@@ -117,7 +117,7 @@ class Cluster_Data(Data):
         overlap_data['MA'] = self.cluster(talib.MA(self.close))
         overlap_data['SMA'] = self.cluster(talib.SMA(self.close))
         overlap_data['T3'] = self.cluster(talib.T3(self.close))
-        overlap_data['TEMA'] = self.cluster(talib.TEMA(self.close))
+        overlap_data['TEMA'] = self.cluster(talib.TEMA(self.close, timeperiod=20))
         overlap_data['TRIMA'] = self.cluster(talib.TRIMA(self.close))
         overlap_data['WMA'] = self.cluster(talib.WMA(self.close))
         overlap_data['MIDPOINT'] = self.cluster(talib.MIDPOINT(self.close))
@@ -249,7 +249,7 @@ class Cluster_Data(Data):
         momentum_data['ADX'] = self.cluster(talib.ADX(self.high, self.low, self.close))
         momentum_data['APO'] = self.cluster(talib.APO(self.close))
         momentum_data['CMO'] = self.cluster(talib.CMO(self.close))
-        momentum_data['TRIX'] = self.cluster(talib.TRIX(self.close, timeperiod=30))
+        momentum_data['TRIX'] = self.cluster(talib.TRIX(self.close, timeperiod=20))
         momentum_data['ULTOSC'] = self.cluster(talib.ULTOSC(self.high, self.low, self.close))
         momentum_data['WILLR'] = self.cluster(talib.WILLR(self.high, self.low, self.close))
 
