@@ -1,6 +1,8 @@
 import os
+import sys
 import time
 import dotenv
+import logging
 import argparse
 import numpy as np
 from network import TD3_network
@@ -94,7 +96,7 @@ class RealTimeTrader:
                 else:
                     res = self.api.order_cash(self.stocks[stock], trading_unit, curr_price, '02', order_type='00')
                     if res and res.get('rt_cd') == '0':
-                        print(f'{self.stocks[stock]} 매수 주문 접수')
+                        logging.info(f'{self.stocks[stock]} 매수 주문 접수')
                         self.balance[stock] -= curr_price * trading_unit * (1 + self.charge)	# 보유 현금을 갱신
                     else: action[stock] = parameters.ACTION_HOLD
             # 매도
@@ -104,7 +106,7 @@ class RealTimeTrader:
                 else:
                     res = self.api.order_cash(self.stocks[stock], trading_unit, curr_price, '01', order_type='00')
                     if res and res.get('rt_cd') == '0':
-                        print(f'{self.stocks[stock]} 매도 주문 접수')
+                        logging.info(f'{self.stocks[stock]} 매도 주문 접수')
                         self.balance[stock] += curr_price * trading_unit * (1 - self.charge - self.tax)	# 보유 현금을 갱신
                     else: action[stock] = parameters.ACTION_HOLD
 
@@ -136,11 +138,12 @@ class RealTimeAgent:
         trader = RealTimeTrader(environment, self.stock_codes, self.act_dim, api)
 
         while True:
+            logging.info('분봉 매매 시작')
             state = environment.build_state(self.stock_codes)
             policy = self.network.actor_predict(np.array(state))
             action = policy[0]
             real_actions = trader.act(action)
-            print('60초간 대기...')
+            logging.info('60초간 대기...')
             time.sleep(60)
 
 if __name__ == '__main__':
@@ -152,6 +155,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dotenv.load_dotenv()
+    output_path = os.path.join(parameters.BASE_DIR, 'output')
+    file_handler = logging.FileHandler(filename=os.path.join(
+        output_path, f"{'realtime'}.log"), encoding='utf-8')
+    stream_handler = logging.StreamHandler(sys.stdout)
+    file_handler.setLevel(logging.DEBUG)
+    stream_handler.setLevel(logging.INFO)
+    logging.basicConfig(format="%(message)s",
+                        handlers=[file_handler, stream_handler], level=logging.DEBUG)
     quarters_df = phase2quarter(args.stock_dir)
     for row in quarters_df.itertuples():
         load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
