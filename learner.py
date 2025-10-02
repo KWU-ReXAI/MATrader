@@ -266,20 +266,18 @@ class TD3_Agent:
 
 		return trader.portfolio_value
 
-	def trade_realtime(self):
+	def trade_realtime(self, fmpath):
 		logging.info("실시간 자동매매를 시작합니다...")
 
 		# 1. 실시간 환경 및 트레이더 구성
 		environment = RealtimeEnvironment(
 			api_handler=self.api,
 			stock_codes=self.stock_codes,
-            # feature.py에서 사용할 저장된 모델(PCA, FCM)이 있는 경로를 지정합니다.
-			# policy_network_path가 저장된 폴더를 사용합니다.
-			fmpath=os.path.dirname(self.policy_network_path),
+			fmpath=fmpath,
 			window_size=self.window_size,
 			feature_window=1
 		)
-		# Trader 클래스는 잔고 관리 및 action 변환 등 보조 역할로 사용합니다.
+		# 잔고 관리 및 액션 변환
 		trader = Trader(environment, self.balance, self.act_dim)
 
 		# 2. 메인 루프: 프로그램이 중지될 때까지 1분마다 반복
@@ -311,11 +309,12 @@ class TD3_Agent:
 				logging.info(f"모델 출력 Raw Action: {action.round(2)}")
 				logging.info(f"변환된 Action (매수:{parameters.ACTION_BUY}, 홀드:{parameters.ACTION_HOLD}, 매도:{parameters.ACTION_SELL}): {mapped_action}")
 
+
 				# 6. [거래 실행] 결정된 행동에 따라 실제 매매 주문
 				account_info = self.api.get_account_balance()
 				if account_info is None:
-					logging.error("계좌 정보를 가져올 수 없습니다. 10초 후 재시도합니다.")
-					time.sleep(10)
+					logging.error("계좌 정보를 가져올 수 없습니다. 3초 후 재시도합니다.")
+					time.sleep(3)
 					continue
 
 				logging.info(f"현재 예수금: {account_info['deposit']:,}원")
@@ -326,6 +325,7 @@ class TD3_Agent:
 					trader.num_stocks[stock_idx] = holding['qty'] if holding else 0 # qty: 보유 주식 수
                     # 그니깐 account_info를 가져와서 그걸 trader 객체에 정보를 업데이트하는겨
 
+				logging.info(f"거래 할 종목들: {self.stock_codes}")
 				curr_prices = environment.curr_price()
 				if curr_prices is None:
 					logging.error("현재 가격 정보를 가져올 수 없습니다. 10초 후 재시도합니다.")
@@ -334,6 +334,7 @@ class TD3_Agent:
 
 				# 각 종목별로 결정된 action에 따라 주문을 실행합니다.
 				for idx, order in enumerate(mapped_action):
+					time.sleep(2)
 					stock_code = self.stock_codes[idx]
 
 					if order == parameters.ACTION_BUY: # 매수

@@ -12,22 +12,18 @@ np.random.seed(42)
 
 
 class Data(metaclass=abc.ABCMeta):
-    def __init__(self, stock, data, start, end, window_size=1, fmpath=None, feature_window=1, train=True):
-        self.open = data['open'];
-        self.close = data['close'];
+    def __init__(self, stock, data, window_size=1, fmpath=None, feature_window=1, train=True):
+        self.open = data['open']
+        self.close = data['close']
         self.high = data['high']
-        self.low = data['low'];
-        self.adj_close = data['adj close'];
+        self.low = data['low']
+        self.adj_close = data['adj close']
         self.volume = data['volume']
         self.original_data = pd.DataFrame({"date": data['date']})
-        self.train = train;
+        self.train = train
         self.stock = stock
 
-        self.start_idx = len(self.original_data[(self.original_data['date'] < str(start))])
-        self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
-
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx - window_size + 1:self.end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size
@@ -36,7 +32,8 @@ class Data(metaclass=abc.ABCMeta):
         self.fmpath = fmpath
 
     @abc.abstractmethod
-    def load_data(self):
+    # def load_data(self):
+    def load_data(self, start, end, realtime=False):
         pass
 
     @abc.abstractmethod
@@ -47,14 +44,21 @@ class Data(metaclass=abc.ABCMeta):
 from sklearn.decomposition import PCA
 
 
-class Cluster_Data(Data):
+class Realtime_Data(Data):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tmp = self.data.copy()
+        self.start_idx = None
+        self.end_idx = None
+        self.tmp = None
         self.n_cluster = 20
         self.pca_dim = 8
 
-    def load_data(self):
+    def load_data(self, start, end):
+        self.start_idx = len(self.data) - 1
+        self.end_idx = len(self.data)
+        self.data = self.data[self.start_idx - self.window_size + 1:self.end_idx]
+        self.tmp = self.data.copy()
         data = self.setting()
         return np.array(data)
 
@@ -124,7 +128,7 @@ class Cluster_Data(Data):
         overlap_data['upperband'] = self.cluster(upperband)
         overlap_data['middleband'] = self.cluster(middleband)
         overlap_data['lowerband'] = self.cluster(lowerband)
-        
+
         mama, fama = talib.MAMA(self.close)
         overlap_data['mama'] = self.cluster(mama)
         overlap_data['fama'] = self.cluster(fama)
@@ -148,7 +152,7 @@ class Cluster_Data(Data):
 
         # PCA로 기술적 지표 차원 축소
         if self.train:
-            pca = PCA(n_components=self.pca_dim) # None -> all feature, 2 -> 2-dimension
+            pca = PCA(n_components=self.pca_dim)  # None -> all feature, 2 -> 2-dimension
             pca.fit(overlap_data)
             joblib.dump(pca, os.path.join(self.fmpath, f'pca_overlay_{self.stock}.joblib'))
         else:
@@ -187,7 +191,10 @@ class Cluster_Data(Data):
             fcm = joblib.load(os.path.join(self.fmpath, f'fcm_volume_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(np.array(volume_data))
-        cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
+        cluster_center = fcm.centers;
+        d_1 = [];
+        d_2 = [];
+        d_3 = []
         for current_center in zip(cluster_n):
             d_1.append(cluster_center[current_center][0])
             d_2.append(cluster_center[current_center][1])
@@ -212,7 +219,10 @@ class Cluster_Data(Data):
             fcm = joblib.load(os.path.join(self.fmpath, f'fcm_volatility_{self.stock}.joblib'))
 
         cluster_n = fcm.predict(np.array(vol_data))
-        cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
+        cluster_center = fcm.centers;
+        d_1 = [];
+        d_2 = [];
+        d_3 = []
         for current_center in zip(cluster_n):
             d_1.append(cluster_center[current_center][0])
             d_2.append(cluster_center[current_center][1])
@@ -299,18 +309,20 @@ class Cluster_Data(Data):
         for i in range(self.pca_dim):
             self.data[f"momentum_center {i + 1}"] = lists[i]
 
-    def cluster(self,data):
-        data = data[self.start_idx-self.window_size+1:self.end_idx]
+    def cluster(self, data):
+        data = data[self.start_idx - self.window_size + 1:self.end_idx]
         data = self.window_scaler(data)
         return data
 
     def window_scaler(self, data):
         data = np.array(data)
-        scaler_data = []; s_index = 0; e_index = 0
-        while(e_index != len(data)):
-            e_index = s_index+self.feature_window
+        scaler_data = [];
+        s_index = 0;
+        e_index = 0
+        while (e_index != len(data)):
+            e_index = s_index + self.feature_window
             if e_index > len(data): e_index = len(data)
-            temp = self.scaler.fit_transform(data.reshape(-1,1)[s_index:e_index]).reshape(1,-1)[0]
+            temp = self.scaler.fit_transform(data.reshape(-1, 1)[s_index:e_index]).reshape(1, -1)[0]
             s_index += self.feature_window
             scaler_data.extend(temp)
         return scaler_data

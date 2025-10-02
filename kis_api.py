@@ -132,6 +132,14 @@ class KISApiHandler:
                     "cntg_vol": "volume",
                 }
                 df.rename(columns={k: v for k, v in rename.items() if k in df.columns}, inplace=True)
+                ### 여기 추가했어용 -> 숫자로 바꿀려고
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                df.dropna(inplace=True)  # 변환 중 오류가 발생한 행(NaN)이 있다면 제거
+                ### 여기까지
+
                 if "date" in df.columns and "time" in df.columns:
                     df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"], format="%Y%m%d %H%M%S",
                                                     errors="coerce")

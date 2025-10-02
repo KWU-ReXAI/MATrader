@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from feature import Cluster_Data
+from realtime_feature import Realtime_Data
 from tqdm import tqdm
 from kis_api import KISApiHandler  # KISApiHandler 임포트
 from datetime import datetime, timedelta # 시간 관련 모듈 임포트
@@ -98,7 +99,7 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
     return realtime_chart_data, realtime_data"""
 
 
-def load_realtime_data(api_handler, stock_codes, fmpath, window_size, feature_window):
+def load_realtime_data(api_handler, stock_codes, fmpath=None, window_size=None, feature_window=None):
     try:
         latest_states = []
         latest_charts = []
@@ -112,22 +113,24 @@ def load_realtime_data(api_handler, stock_codes, fmpath, window_size, feature_wi
                 return None, None
 
             # 수정: API 응답에 맞게 컬럼을 준비합니다.
-            df_realtime = df_realtime.rename(columns={'close': 'adj close'})
-            df_realtime['close'] = df_realtime['adj close']
+            #df_realtime = df_realtime.rename(columns={'close': 'adj close'})
+            df_realtime['adj close'] = df_realtime['close']
             df_realtime['date'] = df_realtime['datetime'].dt.strftime('%Y%m%d%H%M%S')
+            final_columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+            df_realtime = df_realtime[final_columns]
 
             # 2. 훈련 때와 동일한 방식으로 피처 생성 (train=False)
-            feature_generator = Cluster_Data(
+            feature_generator = Realtime_Data(
                 stock=stock_code,
                 data=df_realtime,
-                start=df_realtime['date'].iloc[0],
-                end=df_realtime['date'].iloc[-1],
+                #start=df_realtime['date'].iloc[0],
+                #end=df_realtime['date'].iloc[-1],
                 window_size=window_size,
                 fmpath=fmpath,
                 feature_window=feature_window,
                 train=False
             )
-            all_feature_data = feature_generator.load_data()
+            all_feature_data = feature_generator.load_data(0,0)
 
             # 3. 수정: 생성된 전체 피처 중 "가장 마지막 state"만 사용합니다.
             latest_states.append(all_feature_data[-1])
