@@ -1,20 +1,40 @@
 import os
 import sys
+import json
+import torch
+import random
 import logging
 import argparse
-import json
 import datetime
-from parameters import parameters
+import numpy as np
+import pandas as pd
 import data_manager
-from learner import TD3_Agent
+from learner import MATagent
 from phase import phase2quarter
+from parameters import parameters
+
+SEED = 42
+def set_seed(seed):
+	"""
+	모든 라이브러리의 랜덤 시드를 고정하는 함수
+	"""
+	random.seed(seed)
+	os.environ['PYTHONHASHSEED'] = str(seed)
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+
+	if torch.cuda.is_available():
+		torch.cuda.manual_seed(seed)
+		torch.cuda.manual_seed_all(seed)
+		torch.backends.cudnn.deterministic = True
+		torch.backends.cudnn.benchmark = False
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--stock_dir', type=str)
 	parser.add_argument('--output_name', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='ROK')
-	parser.add_argument('--algorithm', choices=['td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='td3')
+	parser.add_argument('--algorithm', choices=['mat','td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='mat')
 	parser.add_argument('--test', action='store_true')
 	parser.add_argument('--model_dir', default=' ')
 	parser.add_argument('--model_version', default=29)
@@ -27,10 +47,12 @@ if __name__ == '__main__':
 	parser.add_argument('--feature_window', type=int, default=1)
 	parser.add_argument('--num_step', type=int, default=2)
 	parser.add_argument('--start_epsilon', type=float, default=0.02)
-	parser.add_argument('--noise', type=float, default=0.3)
-	parser.add_argument('--update_noise', type=float, default=0.1)
+	parser.add_argument('--noise', type=float, default=0.7)
+	parser.add_argument('--ppo_epoch', type=int, default=15)
+	parser.add_argument('--num_mini_batch', type=int, default=1)
 	args = parser.parse_args()
 
+	set_seed(SEED)
 	output_path = os.path.join(parameters.BASE_DIR,
 		'output/{}'.format(args.output_name))
 	if not os.path.isdir(output_path): os.makedirs(output_path)
@@ -50,7 +72,7 @@ if __name__ == '__main__':
 		handlers=[file_handler, stream_handler], level=logging.DEBUG)
 
 	quarters_df = phase2quarter(args.stock_dir)
-
+	dfs = []
 	for row in quarters_df.itertuples():
 		quarter_path = os.path.join(output_path, f'phase_{row.phase}_{row.testNum}', row.quarter)
 		if not os.path.isdir(quarter_path): os.makedirs(quarter_path)
@@ -59,22 +81,17 @@ if __name__ == '__main__':
 			continue
 
 		# 모델 경로 준비
-		policy_network_path = os.path.join(
-			quarter_path, 'policy')
-		value_network_path = os.path.join(
-			quarter_path, 'value')
+		network_path = os.path.join(
+			quarter_path, 'mat')
 
 		# 모델 재사용
 		if args.test:
-			load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-				f'phase_{row.phase}_{row.testNum}', row.quarter, 'value_{}'.format(args.model_version))
-			load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-				f'phase_{row.phase}_{row.testNum}', row.quarter, 'policy_{}'.format(args.model_version))
+			load_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+				f'phase_{row.phase}_{row.testNum}', row.quarter, 'mat_{}'.format(args.model_version))
 			feature_model_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
 				f'phase_{row.phase}_{row.testNum}', row.quarter, 'feature_model')
 		else:
-			load_value_network_path = " "
-			load_policy_network_path = " "
+			load_network_path = " "
 			# feature model: FCM, PCA 모델
 			feature_model_path = os.path.join(quarter_path, 'feature_model')
 			if not os.path.isdir(feature_model_path): os.makedirs(feature_model_path)
@@ -94,10 +111,15 @@ if __name__ == '__main__':
 							  'train_chart_data': train_chart_data, 'test_chart_data': test_chart_data,
 							  'training_data': training_data,'test_data': test_data})
 		# f.open
-		if args.algorithm == 'td3':
-			learner = TD3_Agent(**{**common_params, 'output_path': quarter_path, 'lr': args.lr, 'test': args.test, 'phase': row.phase,
-						'testNum': row.testNum, 'quarter': row.quarter, 'value_network_path' : value_network_path, 'policy_network_path' : policy_network_path,
-						'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-						'window_size': args.window_size})
-			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.update_noise, args.start_epsilon)
-			learner.backtest(args.num_step)
+		if args.algorithm == 'mat':
+			learner = MATagent(**{**common_params, 'output_path': quarter_path, 'lr': args.lr, 'test': args.test, 'phase': row.phase,
+						'testNum': row.testNum, 'quarter': row.quarter, 'network_path' : network_path,
+						'load_network_path' : load_network_path,
+						'window_size': args.window_size,
+						'ppo_epoch': args.ppo_epoch,
+						'num_mini_batch': args.num_mini_batch})
+			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
+			df = learner.backtest(args.num_step)
+			dfs.append(df)
+	full_df = pd.concat(dfs)
+	full_df.to_csv(os.path.join(output_path, f'{args.output_name}_result.csv'), index=False, encoding='utf-8-sig')
