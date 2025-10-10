@@ -26,11 +26,11 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
 
     for idx, data in enumerate(tqdm(df_stocks, desc='Data preprocessing')):
         if train:
-            train_feature = Cluster_Data(stocks[idx], data,train_start, train_end, window_size, fmpath, feature_window, train=True)
-            train_data = train_feature.load_data()
+            train_feature = Cluster_Data(stocks[idx], data, window_size, fmpath, feature_window, train=True)
+            train_data = train_feature.load_data(train_start, train_end)
             train_chart_data = data[(data['date'] >= str(train_start)) & (data['date'] <= str(train_end))].dropna()
-        test_feature = Cluster_Data(stocks[idx], data, test_start, test_end, window_size, fmpath, feature_window, train=False)
-        test_data = test_feature.load_data()
+        test_feature = Cluster_Data(stocks[idx], data, window_size, fmpath, feature_window, train=False)
+        test_data = test_feature.load_data(test_start, test_end)
         test_chart_data = data[(data['date'] >= str(test_start)) & (data['date'] <= str(test_end))].dropna()
 
         if train:
