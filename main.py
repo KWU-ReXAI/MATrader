@@ -1,13 +1,33 @@
 import os
 import sys
+import json
+import torch
+import random
 import logging
 import argparse
-import json
 import datetime
-from parameters import parameters
+import numpy as np
+import pandas as pd
 import data_manager
 from learner import MATagent
 from phase import phase2quarter
+from parameters import parameters
+
+SEED = 42
+def set_seed(seed):
+	"""
+	모든 라이브러리의 랜덤 시드를 고정하는 함수
+	"""
+	random.seed(seed)
+	os.environ['PYTHONHASHSEED'] = str(seed)
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+
+	if torch.cuda.is_available():
+		torch.cuda.manual_seed(seed)
+		torch.cuda.manual_seed_all(seed)
+		torch.backends.cudnn.deterministic = True
+		torch.backends.cudnn.benchmark = False
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -32,6 +52,7 @@ if __name__ == '__main__':
 	parser.add_argument('--num_mini_batch', type=int, default=1)
 	args = parser.parse_args()
 
+	set_seed(SEED)
 	output_path = os.path.join(parameters.BASE_DIR,
 		'output/{}'.format(args.output_name))
 	if not os.path.isdir(output_path): os.makedirs(output_path)
@@ -51,7 +72,7 @@ if __name__ == '__main__':
 		handlers=[file_handler, stream_handler], level=logging.DEBUG)
 
 	quarters_df = phase2quarter(args.stock_dir)
-
+	dfs = []
 	for row in quarters_df.itertuples():
 		quarter_path = os.path.join(output_path, f'phase_{row.phase}_{row.testNum}', row.quarter)
 		if not os.path.isdir(quarter_path): os.makedirs(quarter_path)
@@ -98,4 +119,7 @@ if __name__ == '__main__':
 						'ppo_epoch': args.ppo_epoch,
 						'num_mini_batch': args.num_mini_batch})
 			if not args.test: learner.run(args.max_episode, args.num_step, args.noise,args.start_epsilon)
-			learner.backtest(args.num_step)
+			df = learner.backtest(args.num_step)
+			dfs.append(df)
+	full_df = pd.concat(dfs)
+	full_df.to_csv(os.path.join(output_path, f'{args.output_name}_result.csv'), index=False)

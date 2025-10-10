@@ -2,6 +2,7 @@ import os
 import logging
 import itertools
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from collections import deque
 import threading
@@ -179,6 +180,7 @@ class MATagent:
 			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
 		# Sharpe Ratio
+		rr = trader.portfolio_value / self.balance - 1
 		sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward))/ (np.std(memory_reward) + 1e-10)
 		mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
 												in zip(itertools.accumulate(memory_pv, max), memory_pv))
@@ -189,6 +191,7 @@ class MATagent:
 															  trader.num_hold,
 															  trader.num_stocks, trader.portfolio_value,
 															  sr, mdd))
+		df = pd.DataFrame({'quarter': [self.quarter], 'rr': [rr], 'sr': [sr], 'mdd': [mdd]})
 		environment.plt_result(plt_path, self.stock_codes)
 
-		return trader.portfolio_value
+		return df
