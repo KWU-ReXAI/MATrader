@@ -1,4 +1,4 @@
-# SIRL_Torch 🚀
+# MAT_trading 🚀
 
 ## 실행 방법
 

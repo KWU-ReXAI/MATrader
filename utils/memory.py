@@ -230,3 +230,79 @@ class IMI_Transaction(object):
         """
         self.buffer = deque()
         self.count = 0
+
+# =================================================================
+# PPO용 리플레이 버퍼
+# =================================================================
+
+class PPOReplayBuffer:
+    def __init__(self, num_agents, obs_dim, act_dim):
+        self.num_agents = num_agents
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.clear()
+
+    def add(self, obs, action, reward, done, action_log_prob, value_pred):
+        """ 에피소드의 한 스텝 데이터를 버퍼에 추가합니다. """
+        self.obs.append(obs)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.dones.append(done)
+        self.action_log_probs.append(action_log_prob)
+        self.value_preds.append(value_pred)
+
+    def compute_returns_and_advantages(self, last_value, gamma=0.99, gae_lambda=0.95):
+        """ 에피소드가 끝나면 호출하여 반환값과 어드밴티지를 계산합니다. """
+        gae = 0
+        self.returns = [0] * len(self.rewards)
+        self.advantages = [0] * len(self.rewards)
+
+        # 마지막 스텝부터 역순으로 계산
+        for step in reversed(range(len(self.rewards))):
+            if step == len(self.rewards) - 1:
+                next_value = last_value
+                next_done = 0
+            else:
+                next_value = self.value_preds[step + 1]
+                next_done = self.dones[step + 1]
+
+            delta = self.rewards[step] + gamma * next_value * (1 - next_done) - self.value_preds[step]
+            gae = delta + gamma * gae_lambda * (1 - next_done) * gae
+            self.returns[step] = gae + self.value_preds[step]
+            self.advantages[step] = gae
+
+    def sample(self, num_mini_batch=1):
+        """ 학습을 위한 미니배치를 샘플링하는 제너레이터 """
+        # 데이터를 numpy 배열로 변환
+        obs = np.array(self.obs)
+        actions = np.array(self.actions)
+        action_log_probs = np.array(self.action_log_probs)
+        value_preds = np.array(self.value_preds)
+        returns = np.array(self.returns)
+        advantages = np.array(self.advantages)
+
+        # 어드밴티지 정규화
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        batch_size = len(self.obs)
+        mini_batch_size = batch_size // num_mini_batch
+
+        rand_ids = np.random.permutation(batch_size)
+
+        for start_idx in range(0, batch_size, mini_batch_size):
+            end_idx = start_idx + mini_batch_size
+            mb_ids = rand_ids[start_idx:end_idx]
+
+            yield (obs[mb_ids], actions[mb_ids], action_log_probs[mb_ids],
+                   value_preds[mb_ids], returns[mb_ids], advantages[mb_ids])
+
+    def clear(self):
+        """ 버퍼를 초기화합니다. """
+        self.obs = []
+        self.actions = []
+        self.rewards = []
+        self.dones = []
+        self.action_log_probs = []
+        self.value_preds = []
+        self.returns = []
+        self.advantages = []
