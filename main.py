@@ -122,4 +122,4 @@ if __name__ == '__main__':
 			df = learner.backtest(args.num_step)
 			dfs.append(df)
 	full_df = pd.concat(dfs)
-	full_df.to_csv(os.path.join(output_path, f'{args.output_name}_result.csv'), index=False)
+	full_df.to_csv(os.path.join(output_path, f'{args.output_name}_result.csv'), index=False, encoding='utf-8-sig')
