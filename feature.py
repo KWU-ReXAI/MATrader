@@ -48,7 +48,7 @@ class Cluster_Data(Data):
         else:
             self.start_idx = len(self.data[(self.data['date'] < str(start))])
             self.end_idx = len(self.data[(self.data['date'] <= str(end))])
-        self.data = self.data[self.start_idx - self.window_size + 1:self.end_idx]
+        self.data = self.data[self.start_idx:self.end_idx]
         self.tmp = self.data.copy()
         data = self.setting()
         return np.array(data)

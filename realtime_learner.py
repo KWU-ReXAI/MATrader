@@ -5,7 +5,7 @@ import dotenv
 import logging
 import argparse
 import numpy as np
-from network import TD3_network
+from network import MultiAgentTransformer
 from feature import Cluster_Data
 from parameters import parameters
 from kis_api import KISApiHandler
@@ -39,8 +39,7 @@ class RealtimeEnvironment:
                                         train=False)
             test_data = test_feature.load_data(0, 0, realtime=True)
             test_datas.append(test_data)
-        test_data = np.stack(test_datas, axis=2)
-        test_data = test_data.reshape(test_data.shape[0], test_data.shape[1], -1)
+        test_data = np.stack(test_datas, axis=1)
         return test_data # done은 일단 뺐음
 
     def get_holdings(self):
@@ -57,8 +56,8 @@ class RealTimeTrader:
         self.api = api
         # Trader 클래스의 속성
         self.initial_balance = None
-        self.act_dim = act_dim  # 종목 수 * 액션 수
-        self.n_stocks = act_dim // parameters.NUM_ACTIONS  # 종목 수
+        self.act_dim = act_dim  # 액션 수
+        self.n_stocks = len(stocks)
         # 포트폴리오 관련
         self.balance = None
         self.running = False
@@ -77,7 +76,7 @@ class RealTimeTrader:
         return 0
 
     def act(self, action):
-        action = self.map_action(action)
+        # action = self.map_action(action)
         if not self.running:
             balance, holdings = self.environment.get_holdings()
             self.initial_balance = balance
@@ -114,8 +113,7 @@ class RealTimeTrader:
 
 class RealTimeAgent:
     def __init__(self, stock_codes:list, fmpath = None,
-                 load_value_network_path = None, load_policy_network_path = None,
-                 window_size = 10):
+                 load_network_path = None, window_size = 10):
 
         # paths and stock code
         self.stock_codes = stock_codes
@@ -123,12 +121,12 @@ class RealTimeAgent:
 
         # parameters
         self.window_size = window_size
-        self.act_dim = len(stock_codes) * parameters.NUM_ACTIONS
-        self.inp_dim = len(stock_codes) * FEATURES
+        self.act_dim = parameters.NUM_ACTIONS
+        self.inp_dim = FEATURES
         # Create networks
-        self.network = TD3_network(self.inp_dim, self.act_dim, 0, 0, self.window_size)
-        if os.path.exists(load_policy_network_path+'.pt'):
-            self.network.load_weights(load_policy_network_path,load_value_network_path)
+        self.network = MultiAgentTransformer(self.inp_dim, self.act_dim, len(stock_codes), 1, 64, 1)
+        if os.path.exists(load_network_path+'.pt'):
+            self.network.load_model(load_network_path)
 
     def realtime_trade(self, app_key, app_secret, acnt_no):
         # API setting
@@ -140,7 +138,7 @@ class RealTimeAgent:
         while True:
             logging.info('분봉 매매 시작')
             state = environment.build_state(self.stock_codes)
-            policy = self.network.actor_predict(np.array(state))
+            policy, _, _ = self.network.act(np.array(state))
             action = policy[0]
             real_actions = trader.act(action)
             logging.info('60초간 대기...')
@@ -165,14 +163,11 @@ if __name__ == '__main__':
                         handlers=[file_handler, stream_handler], level=logging.DEBUG)
     quarters_df = phase2quarter(args.stock_dir)
     for row in quarters_df.itertuples():
-        load_value_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-            f'phase_{row.phase}_{row.testNum}', row.quarter, 'value_{}'.format(args.model_version))
-        load_policy_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
-            f'phase_{row.phase}_{row.testNum}', row.quarter, 'policy_{}'.format(args.model_version))
+        load_network_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
+            f'phase_{row.phase}_{row.testNum}', row.quarter, 'mat_{}'.format(args.model_version))
         feature_model_path = os.path.join(parameters.BASE_DIR, 'output', args.model_dir,
             f'phase_{row.phase}_{row.testNum}', row.quarter, 'feature_model')
 
         learner = RealTimeAgent(**{'stock_codes': row.stock_codes, 'fmpath': feature_model_path,
-                    'load_policy_network_path' : load_policy_network_path, 'load_value_network_path' : load_value_network_path,
-                    'window_size': args.window_size})
+                    'load_network_path' : load_network_path, 'window_size': args.window_size})
         learner.realtime_trade(os.getenv("APP_KEY"), os.getenv("APP_SECRET"), os.getenv("ACNT_NO"))
