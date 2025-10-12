@@ -9,47 +9,35 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "0"
 np.random.seed(42)
-
-
 class Data(metaclass=abc.ABCMeta):
-    def __init__(self, stock, data, start, end, window_size=1, fmpath=None, feature_window=1, train=True):
-        self.open = data['open'];
-        self.close = data['close'];
-        self.high = data['high']
-        self.low = data['low'];
-        self.adj_close = data['adj close'];
-        self.volume = data['volume']
-        self.original_data = pd.DataFrame({"date": data['date']})
-        self.train = train;
-        self.stock = stock
+    def __init__(self, stock, data, start, end, window_size = 1, fmpath = None, feature_window=1, train=True):
+        self.open = data['open']; self.close = data['close']; self.high = data['high']
+        self.low = data['low']; self.adj_close = data['adj close']; self.volume = data['volume']
+        self.original_data = pd.DataFrame({"date":data['date']})
+        self.train = train; self.stock = stock
 
         self.start_idx = len(self.original_data[(self.original_data['date'] < str(start))])
         self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
 
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx - window_size + 1:self.end_idx]
+        self.data = self.data[self.start_idx:self.end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size
         self.feature_window = feature_window
-        if feature_window < window_size: self.feature_window = window_size
+        if feature_window < window_size : self.feature_window = window_size
         self.fmpath = fmpath
-
     @abc.abstractmethod
     def load_data(self):
         pass
-
     @abc.abstractmethod
     def setting(self):
         pass
 
-
 from sklearn.decomposition import PCA
-
-
 class Cluster_Data(Data):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args,**kwargs)
         self.tmp = self.data.copy()
         self.n_cluster = 20
         self.pca_dim = 8
@@ -59,43 +47,36 @@ class Cluster_Data(Data):
         return np.array(data)
 
     def setting(self):
-        self.candle_stick()  # 4
-        self.overlay()  # 5
-        self.momentum()  # 5
-        self.volume_indicator()  # 3
-        self.volatility_indicator()  # 3
+        self.candle_stick()  #4
+        self.overlay()  #5
+        self.momentum() #5
+        self.volume_indicator() #3
+        self.volatility_indicator() #3
         del self.data['date']
 
-        windows_data = []
-        for index in range(self.window_size, len(self.data) + 1):
-            data = self.data.iloc[index - self.window_size:index]
-            windows_data.append(np.array(data))
+        windows_data = np.array(self.data)
 
         return windows_data
 
     def candle_stick(self):
         candle_data = self.tmp.copy()
 
-        upper = [];
-        lower = [];
-        body = [];
-        colors = []  # upper lenght,lower length,body length,body color
-        for index in range(self.start_idx - self.window_size + 1, self.end_idx):
+        upper = []; lower = []; body= []; colors= []     #upper lenght,lower length,body length,body color
+        for index in range(self.start_idx, self.end_idx):
             body.append([np.abs(self.close[index] - self.open[index])])
-            if self.close[index] - self.open[index] > 0:
+            if self.close[index] - self.open[index] > 0: 
                 upper.append([self.high[index] - self.close[index]])
                 lower.append([self.open[index] - self.low[index]])
-                colors.append(0.0)  # body color is red
-            else:
+                colors.append(0.0)        #body color is red
+            else : 
                 upper.append([self.high[index] - self.open[index]])
                 lower.append([self.close[index] - self.low[index]])
-                colors.append(1.0)  # body color is green
+                colors.append(1.0)                                             #body color is green
 
-        candle_data['upper'] = self.window_scaler(upper);
-        candle_data['lower'] = self.window_scaler(lower)
-        candle_data['body'] = self.window_scaler(body);
-        self.data['color'] = colors
 
+        candle_data['upper'] = self.window_scaler(upper); candle_data['lower'] = self.window_scaler(lower)
+        candle_data['body'] = self.window_scaler(body); self.data['color'] = colors
+        
         del candle_data['date']
 
         if self.train:
@@ -105,10 +86,7 @@ class Cluster_Data(Data):
         else:
             fcm = joblib.load(os.path.join(self.fmpath, f'fcm_candle_{self.stock}.joblib'))
         cluster_n = fcm.predict(np.array(candle_data))
-        cluster_center = fcm.centers;
-        d_1 = [];
-        d_2 = [];
-        d_3 = []
+        cluster_center = fcm.centers; d_1 = []; d_2 = []; d_3 = []
         for current_center in zip(cluster_n):
             d_1.append(cluster_center[current_center][0])
             d_2.append(cluster_center[current_center][1])
@@ -300,7 +278,7 @@ class Cluster_Data(Data):
             self.data[f"momentum_center {i + 1}"] = lists[i]
 
     def cluster(self,data):
-        data = data[self.start_idx-self.window_size+1:self.end_idx]
+        data = data[self.start_idx:self.end_idx]
         data = self.window_scaler(data)
         return data
 

@@ -1,293 +1,249 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
+from torch.nn import functional as F
+import math
 import numpy as np
-import random
-import copy
-from parameters import parameters
+from utils.util import init_, huber_loss, ValueNorm, check, discrete_parallel_act, discrete_autoregressive_act
 
-# 재현성을 위한 시드 설정
-torch.manual_seed(42)
-np.random.seed(42)
-random.seed(42)
+# =================================================================
+# Multi-Agent Transformer (MAT) 모델 아키텍처
+# =================================================================
 
-# ------------------------------
-# 1. Actor 네트워크
-#  - gate_weight, gate_bias를 이용해 입력 x에 대한 게이트 적용
-#  - LSTM으로 상태 인코딩 후, 
-#    (1) Policy Head (softmax)
-#    (2) Price Head (회귀) 두 가지 출력을 모두 계산
-# ------------------------------
-class Actor(nn.Module):
-	def __init__(self, inp_dim, act_dim, window_size, units):
-		super(Actor, self).__init__()
-		self.inp_dim = inp_dim
-		self.act_dim = act_dim
-		self.window_size = window_size
-		self.units = units
-		
-		# Actor 전용 gate 파라미터
-		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
-		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
-		
-		# LSTM layer (batch_first=True로 입력 shape을 (batch, seq, feature)로 가정)
-		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
-		
-		# (A) Policy Head: 은닉층
-		self.actor_head = nn.Sequential(
-			nn.Linear(units, units),
-			nn.ReLU(),
-			nn.Linear(units, act_dim)
-		)
-		
-		# (B) Price Head: 은닉층 + 1차원 회귀 출력
-		self.price_head = nn.Sequential(
-			nn.Linear(units, units),
-			nn.ReLU(),
-			nn.Linear(units, act_dim // parameters.NUM_ACTIONS) # 예측해야 하는 가격이 여러개
-		)
-		
-	def forward(self, x):
-		# x: (batch, window_size, inp_dim) 1 10 78
-		# Gate 계산
-		gate = torch.sigmoid(self.gate_weight * x + self.gate_bias)
-		weighted = gate * x
-		
-		# LSTM: 마지막 타임스텝 hidden state 사용
-		lstm_out, _ = self.lstm(weighted)  # (batch, window_size, units)
-		lstm_out = lstm_out[:, -1, :]      # (batch, units)
-		
-		# 두 개의 헤드
-		policy = self.actor_head(lstm_out)   # (batch, act_dim)
-		price = self.price_head(lstm_out)    # (batch, 1)
-		
-		return policy, price
+class SelfAttention(nn.Module):
+    def __init__(self, n_embd, n_head, n_agent, masked=False):
+        super(SelfAttention, self).__init__()
+        assert n_embd % n_head == 0
+        self.masked = masked
+        self.n_head = n_head
+        self.key = init_(nn.Linear(n_embd, n_embd))
+        self.query = init_(nn.Linear(n_embd, n_embd))
+        self.value = init_(nn.Linear(n_embd, n_embd))
+        self.proj = init_(nn.Linear(n_embd, n_embd))
+        if self.masked:
+            self.register_buffer("mask", torch.tril(torch.ones(n_agent + 1, n_agent + 1))
+                                 .view(1, 1, n_agent + 1, n_agent + 1))
 
-# ------------------------------
-# 2. Critic 네트워크
-#  - gate_weight, gate_bias를 이용해 상태(state)에 대한 게이트 적용
-#  - LSTM으로 상태 인코딩 후, 액션(action)과 결합해 Q-value 예측
-# ------------------------------
-class Critic(nn.Module):
-	def __init__(self, inp_dim, act_dim, window_size, units):
-		super(Critic, self).__init__()
-		self.inp_dim = inp_dim
-		self.act_dim = act_dim
-		self.window_size = window_size
-		self.units = units
-		
-		# Critic 전용 gate 파라미터
-		self.gate_weight = nn.Parameter(torch.rand(1, inp_dim))
-		self.gate_bias = nn.Parameter(torch.rand(1, inp_dim))
-		
-		self.lstm = nn.LSTM(input_size=inp_dim, hidden_size=units, batch_first=True)
-		self.state_fc = nn.Sequential(
-			nn.Linear(units, units),
-			nn.ReLU()
-		)
-		self.action_fc = nn.Sequential(
-			nn.Linear(act_dim, units),
-			nn.ReLU()
-		)
-		self.fc = nn.Sequential(
-			nn.Linear(units * 2, units),
-			nn.ReLU(),
-			nn.Linear(units, 1),
-			nn.Sigmoid()
-		)
-		
-	def forward(self, state, action):
-		# state: (batch, window_size, inp_dim), action: (batch, act_dim)
-		gate = torch.sigmoid(self.gate_weight * state + self.gate_bias)
-		weighted = gate * state
-		
-		lstm_out, _ = self.lstm(weighted)   # (batch, window_size, units)
-		lstm_out = lstm_out[:, -1, :]       # (batch, units)
-		
-		s_layer = self.state_fc(lstm_out)
-		a_layer = self.action_fc(action)
-		concat = torch.cat([s_layer, a_layer], dim=1)
-		out = self.fc(concat)  # (batch, 1)
-		return out
+    def forward(self, key, value, query):
+        B, L, D = query.size()
+        k = self.key(key).view(B, L, self.n_head, D // self.n_head).transpose(1, 2)
+        q = self.query(query).view(B, L, self.n_head, D // self.n_head).transpose(1, 2)
+        v = self.value(value).view(B, L, self.n_head, D // self.n_head).transpose(1, 2)
 
-# ------------------------------
-# 3. TD3 Network
-#  - Actor & Critic1 & Critic2 (+ Target)
-#  - 각각이 고유한 gate 파라미터를 가짐
-#  - Soft Update, Optimizer, 학습 로직 등
-# ------------------------------
-class TD3_network(nn.Module):
-	def __init__(self, inp_dim, act_dim, lr, tau, window_size):
-		super(TD3_network, self).__init__()
-		self.inp_dim = inp_dim
-		self.act_dim = act_dim
-		self.window_size = window_size
-		self.units = 128
-		self.tau = tau
-		self.lr = lr
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        if self.masked:
+            att = att.masked_fill(self.mask[:, :, :L, :L] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        y = (att @ v).transpose(1, 2).contiguous().view(B, L, D)
+        return self.proj(y)
 
-		# 디바이스 설정 (GPU 사용 가능 시 cuda 사용)
-		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class EncodeBlock(nn.Module):
+    def __init__(self, n_embd, n_head, n_agent):
+        super(EncodeBlock, self).__init__()
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+        self.attn = SelfAttention(n_embd, n_head, n_agent)
+        self.mlp = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(),
+                                 #nn.Dropout(p=0.1), # dropout layer 추가
+                                 init_(nn.Linear(n_embd, n_embd)))
 
-		# (1) Actor & Target Actor
-		self.actor = Actor(inp_dim, act_dim, window_size, self.units).to(self.device)
-		self.target_actor = copy.deepcopy(self.actor).to(self.device)
+    def forward(self, x):
+        x = self.ln1(x + self.attn(x, x, x))
+        x = self.ln2(x + self.mlp(x))
+        return x
 
-		# (2) Critic1, Critic2 & Target Critic1, Critic2
-		self.critic1 = Critic(inp_dim, act_dim, window_size, self.units).to(self.device)
-		self.critic2 = Critic(inp_dim, act_dim, window_size, self.units).to(self.device)
-		self.target_critic1 = copy.deepcopy(self.critic1).to(self.device)
-		self.target_critic2 = copy.deepcopy(self.critic2).to(self.device)
+class DecodeBlock(nn.Module):
+    def __init__(self, n_embd, n_head, n_agent):
+        super(DecodeBlock, self).__init__()
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+        self.ln3 = nn.LayerNorm(n_embd)
+        self.attn1 = SelfAttention(n_embd, n_head, n_agent, masked=True)
+        self.attn2 = SelfAttention(n_embd, n_head, n_agent, masked=True)
+        self.mlp = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(),
+                                 #nn.Dropout(p=0.1), # dropout layer 추가
+                                 init_(nn.Linear(n_embd, n_embd)))
 
-		# Optimizer 설정
-		# - Actor 파라미터 중에서도 actor_head + LSTM + gate 파라미터는 policy 업데이트
-		# - price_head + LSTM + gate 파라미터는 price 업데이트
-		# - 필요에 따라 원하는 방식으로 나누어 학습할 수 있음
-		self.optimizer_a = optim.Adam(self.actor.parameters(),lr=lr)
-		self.optimizer_c = optim.Adam(
-			list(self.critic1.parameters()) + 
-			list(self.critic2.parameters()),
-			lr=lr)
+    def forward(self, x, rep_enc):
+        x = self.ln1(x + self.attn1(x, x, x))
+        x = self.ln2(rep_enc + self.attn2(key=x, value=x, query=rep_enc))
+        x = self.ln3(x + self.mlp(x))
+        return x
 
-	# ------------------------------
-	# 타깃 네트워크 soft update
-	# ------------------------------
-	def transfer_weights(self):
-		self.soft_update(self.actor, self.target_actor, self.tau)
-		self.soft_update(self.critic1, self.target_critic1, self.tau)
-		self.soft_update(self.critic2, self.target_critic2, self.tau)
-		
-	def soft_update(self, source, target, tau):
-		for target_param, param in zip(target.parameters(), source.parameters()):
-			target_param.data.copy_(
-				tau * param.data + (1 - tau) * target_param.data
-			)
+class Encoder(nn.Module):
+    def __init__(self, obs_dim, n_block, n_embd, n_head, n_agent):
+        super(Encoder, self).__init__()
+        hidden_dim = n_embd * 2
+        self.obs_encoder = nn.Sequential(
+            nn.LayerNorm(obs_dim),
+            init_(nn.Linear(obs_dim, hidden_dim), activate=True),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),  # 중간에 LayerNorm 추가하여 안정성 확보
+            init_(nn.Linear(hidden_dim, n_embd), activate=True),
+            nn.GELU()
+        ) # deeper Encoder
+        #self.obs_encoder = nn.Sequential(nn.LayerNorm(obs_dim), init_(nn.Linear(obs_dim, n_embd), activate=True),nn.GELU())
+        self.ln = nn.LayerNorm(n_embd)
+        self.blocks = nn.Sequential(*[EncodeBlock(n_embd, n_head, n_agent) for _ in range(n_block)])
+        self.head = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(), nn.LayerNorm(n_embd),
+                                  init_(nn.Linear(n_embd, 1)))
 
-	# ------------------------------
-	# 타깃 네트워크 hard update
-	# ------------------------------
-	def copy_weights(self):
-		self.hard_update(self.actor, self.target_actor, self.tau)
-		self.hard_update(self.critic1, self.target_critic1, self.tau)
-		self.hard_update(self.critic2, self.target_critic2, self.tau)
+    def forward(self, obs):
+        obs_embeddings = self.obs_encoder(obs)
+        rep = self.blocks(self.ln(obs_embeddings))
+        v_loc = self.head(rep)
+        return v_loc, rep
 
-	def hard_update(self, source, target, tau):
-		for target_param, param in zip(target.parameters(), source.parameters()):
-			target_param.data.copy_(
-				param.data
-			)
+class Decoder(nn.Module):
+    def __init__(self, action_dim, n_block, n_embd, n_head, n_agent):
+        super(Decoder, self).__init__()
+        self.action_encoder = nn.Sequential(init_(nn.Linear(action_dim + 1, n_embd, bias=False), activate=True),
+                                            nn.GELU())
+        self.ln = nn.LayerNorm(n_embd)
+        self.blocks = nn.Sequential(*[DecodeBlock(n_embd, n_head, n_agent) for _ in range(n_block)])
+        self.head = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(), nn.LayerNorm(n_embd),
+                                  init_(nn.Linear(n_embd, action_dim)))
 
-	# ------------------------------
-	# Actor 추론
-	# ------------------------------
-	def actor_predict(self, state):
-		# state는 (window_size, inp_dim) 또는 (batch, window_size, inp_dim)라고 가정
-		if isinstance(state, np.ndarray):
-			state = torch.tensor(state, dtype=torch.float32, device=self.device)
-		if state.dim() == 2:
-			state = state.unsqueeze(0)
-		policy, _ = self.actor(state)
-		return policy.detach().cpu().numpy()
+    def forward(self, action, obs_rep, obs):
+        action_embeddings = self.action_encoder(action)
+        x = self.ln(action_embeddings)
+        for block in self.blocks:
+            x = block(x, obs_rep)
+        return self.head(x)
 
-	def actor_target_predict(self, states):
-		if isinstance(states, np.ndarray):
-			states = torch.tensor(states, dtype=torch.float32, device=self.device)
-		if states.dim() == 2:
-			states = states.unsqueeze(0)
-		policy, _ = self.target_actor(states)
-		return policy.detach().cpu().numpy()
+# =================================================================
+# MAT 클래스 (학습 및 추론 기능 통합)
+# =================================================================
 
-	# ------------------------------
-	# Critic 타깃 추론
-	# ------------------------------
-	def critic_target_predict(self, states, policies):
-		if isinstance(states, np.ndarray):
-			states = torch.tensor(states, dtype=torch.float32, device=self.device)
-		if isinstance(policies, np.ndarray):
-			policies = torch.tensor(policies, dtype=torch.float32, device=self.device)
-		q1 = self.target_critic1(states, policies)
-		q2 = self.target_critic2(states, policies)
-		return q1.detach().cpu().numpy(), q2.detach().cpu().numpy()
+class MultiAgentTransformer(nn.Module):
+    def __init__(self, obs_dim, action_dim, n_agent, n_block, n_embd, n_head,
+                 lr=5e-4, weight_decay=0, clip_param=0.2,
+                 value_loss_coef=1.0, entropy_coef=0.01, huber_delta=10.0,
+                 max_grad_norm=10.0, device=torch.device("cpu")):
+        super(MultiAgentTransformer, self).__init__()
 
-	# ------------------------------
-	# Actor 학습 (정책 + 가격)
-	# ------------------------------
-	def actor_train(self, states, imitation_action, realPrice):
-		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		imitation_tensor = torch.tensor(imitation_action, dtype=torch.float32, device=self.device)
-		realPrice_tensor = torch.tensor(realPrice, dtype=torch.float32, device=self.device)
-		# realPrice_tensor = torch.reshape(realPrice_tensor, (-1,1))
-		
-		policy, predPrice = self.actor(states_tensor)
-		q_values = self.critic1(states_tensor, policy)
-		actor_loss = -torch.mean(q_values)
-		
-		imitation_loss = F.cross_entropy(policy, imitation_tensor)
+        self.n_agent = n_agent
+        self.action_dim = action_dim
+        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.device = device
+        self.max_grad_norm = max_grad_norm
 
-		price_loss = F.mse_loss(predPrice, realPrice_tensor)
+        # 하이퍼파라미터
+        self.clip_param = clip_param
+        self.value_loss_coef = value_loss_coef
+        self.entropy_coef = entropy_coef
+        self.huber_delta = huber_delta
 
-		loss = actor_loss + imitation_loss + price_loss
+        # 모델 구성
+        self.encoder = Encoder(obs_dim, n_block, n_embd, n_head, n_agent)
+        self.decoder = Decoder(action_dim, n_block, n_embd, n_head, n_agent)
 
-		# Actor Optimizer
-		self.optimizer_a.zero_grad()
-		loss.backward()
-		nn.utils.clip_grad_value_(self.actor.parameters(), clip_value=1.0)
-		self.optimizer_a.step()
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
+        self.value_normalizer = ValueNorm(1, device=self.device)
 
-		return loss.item()
+        self.to(device)
 
-	# ------------------------------
-	# Critic 학습 (두 Critic의 오차 중 최소값)
-	# ------------------------------
-	def critic_train(self, states, policies, critic_target):
-		states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-		policies_tensor = torch.tensor(policies, dtype=torch.float32, device=self.device)
-		critic_target_tensor = torch.tensor(critic_target, dtype=torch.float32, device=self.device)
+    def evaluate_actions(self, obs, action, available_actions=None):
+        """ 학습을 위해 행동의 로그 확률, 가치, 엔트로피를 계산 """
+        obs = check(obs).to(**self.tpdv)
+        action = check(action).to(**self.tpdv).long()
+        if available_actions is not None:
+            available_actions = check(available_actions).to(**self.tpdv)
 
-		q_pred1 = self.critic1(states_tensor, policies_tensor)
-		q_pred2 = self.critic2(states_tensor, policies_tensor)
-		loss1 = F.mse_loss(q_pred1, critic_target_tensor)
-		loss2 = F.mse_loss(q_pred2, critic_target_tensor)
-		loss = loss1 + loss2
+        batch_size = obs.shape[0]
+        values, obs_rep = self.encoder(obs)
 
-		self.optimizer_c.zero_grad()
+        action_log_probs, entropy = discrete_parallel_act(
+            self.decoder, obs_rep, obs, action, batch_size,
+            self.n_agent, self.action_dim, self.tpdv, available_actions
+        )
 
-		loss.backward()  # backward는 단 한 번
-		
-		nn.utils.clip_grad_value_(self.critic1.parameters(), clip_value=1.0)
-		nn.utils.clip_grad_value_(self.critic2.parameters(), clip_value=1.0)
-		self.optimizer_c.step()
+        return (values.squeeze(-1),
+                action_log_probs.squeeze(-1),
+                entropy.squeeze(-1))
 
-		return loss.item()
+    @torch.no_grad()
+    def act(self, obs, available_actions=None, deterministic=False):
+        """ 주어진 관측에 대한 행동을 반환 (Inference) """
+        self.eval()
+        obs = check(obs).to(**self.tpdv).reshape(-1, self.n_agent, obs.shape[-1])
+        if available_actions is not None:
+            available_actions = check(available_actions).to(**self.tpdv)
 
-	# ------------------------------
-	# 액션 선택 (argmax)
-	# ------------------------------
-	# def select_action(self, probs):
-	# 	# probs: (1, act_dim)
-	# 	action_probs = np.array(probs)
-	# 	pred = action_probs[0]
-	# 	action = np.argmax(pred)
-	# 	confidence = pred[action]
-	# 	return action, confidence
+        batch_size = obs.shape[0]
+        value_preds, obs_rep = self.encoder(obs)
 
-	# ------------------------------
-	# 모델 저장/불러오기
-	# ------------------------------
-	def save(self, actor_path, critic_path):
-		# Actor
-		torch.save(self.actor.state_dict(), actor_path + '.pt')
-		# Critic
-		torch.save({
-			'critic1': self.critic1.state_dict(),
-			'critic2': self.critic2.state_dict()
-		}, critic_path + '.pt')
+        actions, action_log_probs = discrete_autoregressive_act(
+            self.decoder, obs_rep, obs, batch_size,
+            self.n_agent, self.action_dim, self.tpdv,
+            available_actions, deterministic
+        )
+        return (actions.squeeze(-1).cpu().numpy(),
+                action_log_probs.squeeze(-1).cpu().numpy(),
+                value_preds.squeeze(-1).cpu().numpy())
 
-	def load_weights(self, actor_path, critic_path):
-		# Actor
-		self.actor.load_state_dict(torch.load(actor_path + '.pt', map_location=self.device))
-		# Critic
-		critic_dict = torch.load(critic_path + '.pt', map_location=self.device)
-		self.critic1.load_state_dict(critic_dict['critic1'])
-		self.critic2.load_state_dict(critic_dict['critic2'])
+    def _calculate_value_loss(self, values, value_preds_batch, return_batch):
+        """ 가치 손실(Critic Loss) 계산 """
+        value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
+
+        self.value_normalizer.update(return_batch.flatten())
+        error_clipped = self.value_normalizer.normalize(return_batch) - value_pred_clipped
+        error_original = self.value_normalizer.normalize(return_batch) - values
+
+        value_loss_clipped = huber_loss(error_clipped, self.huber_delta)
+        value_loss_original = huber_loss(error_original, self.huber_delta)
+
+        value_loss = torch.max(value_loss_original, value_loss_clipped).mean()
+        return value_loss
+
+    def update(self, obs_batch, actions_batch, old_action_log_probs_batch,
+               value_preds_batch, return_batch, adv_targ, available_actions_batch=None):
+        """ PPO 알고리즘으로 모델 파라미터 업데이트 """
+        self.train()
+
+        # 텐서 변환 및 디바이스 할당
+        obs_batch = check(obs_batch).to(**self.tpdv)
+        actions_batch = check(actions_batch).to(**self.tpdv)
+        old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
+        value_preds_batch = check(value_preds_batch).to(**self.tpdv)
+        return_batch = check(return_batch).to(**self.tpdv)
+        adv_targ = check(adv_targ).to(**self.tpdv)
+        if available_actions_batch is not None:
+            available_actions_batch = check(available_actions_batch).to(**self.tpdv)
+
+        # 현재 정책으로 가치, 로그 확률, 엔트로피 계산
+        values, action_log_probs, dist_entropy = self.evaluate_actions(obs_batch, actions_batch,
+                                                                       available_actions_batch)
+
+        # 정책 손실 (Actor Loss) 계산
+        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
+        surr1 = imp_weights * adv_targ
+        surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
+        policy_loss = -torch.min(surr1, surr2).mean()
+
+        # 가치 손실 (Critic Loss) 계산
+        value_loss = self._calculate_value_loss(values, value_preds_batch, return_batch)
+
+        # 전체 손실
+        loss = policy_loss - dist_entropy.mean() * self.entropy_coef + value_loss * self.value_loss_coef
+
+        # 역전파 및 최적화
+        self.optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+        self.optimizer.step()
+
+        return {
+            "policy_loss": policy_loss.item(),
+            "value_loss": value_loss.item(),
+            "entropy": dist_entropy.mean().item()
+        }
+
+    def save_model(self, file_path):
+        """ 모델 가중치 저장 """
+        torch.save(self.state_dict(), file_path+'.pt')
+        print(f"Model saved to {file_path}")
+
+    def load_model(self, file_path):
+        """ 모델 가중치 불러오기 """
+        self.load_state_dict(torch.load(file_path+'.pt', map_location=self.device))
+        print(f"Model loaded from {file_path}")

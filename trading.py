@@ -3,7 +3,7 @@ from parameters import parameters
 from collections import deque
 
 class Trader:
-	def __init__(self, environment, balance, act_dim, delayed_reward_threshold=.05):
+	def __init__(self, environment, balance, n_agents, delayed_reward_threshold=.05):
 		# 환경
 		self.environment = environment
 
@@ -12,12 +12,12 @@ class Trader:
 
 		# Trader 클래스의 속성
 		self.initial_balance = balance  # 초기 자본금
-		self.act_dim = act_dim # 종목 수 * 액션 수
-		self.n_stocks = act_dim // parameters.NUM_ACTIONS # 종목 수
+		self.n_agents = n_agents # 거래하는 종목 수
+		self.act_dim = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
 		# 포트폴리오 관련
-		self.balance = np.full(self.n_stocks, balance // self.n_stocks, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
-		self.cash = balance % self.n_stocks # 종목 별로 잔고 동등하게 나누고 남은 현금
-		self.num_stocks = np.zeros(self.n_stocks, dtype=np.int64)  # 종목별 보유 주식 수
+		self.balance = np.full(n_agents, balance // n_agents, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
+		self.cash = balance % n_agents # 종목 별로 잔고 동등하게 나누고 남은 현금
+		self.num_stocks = np.zeros(n_agents, dtype=np.int64)  # 종목별 보유 주식 수
 		# 포트폴리오 가치: balance + num_stocks * {현재 주식 가격} * (1-수수료)
 		self.portfolio_value = balance
 		self.prev_portfolio_value = balance
@@ -26,20 +26,35 @@ class Trader:
 		self.num_sell = 0  # 매도 횟수
 		self.num_hold = 0  # 홀딩 횟수
 
+		self.initial_stock_balance = balance // n_agents
+
+		# 각 주식별 자산 가치
+		self.stock_portfolio_values = np.full(n_agents, self.initial_stock_balance, dtype=np.float32)
+		self.prev_stock_portfolio_values = np.copy(self.stock_portfolio_values)
+
 	def reset(self):
-		self.balance = np.full(self.n_stocks, self.initial_balance // self.n_stocks, dtype=np.int64)
-		self.cash = self.initial_balance % self.n_stocks
-		self.num_stocks = np.zeros(self.n_stocks, dtype=np.int64)
+		self.balance = np.full(self.n_agents, self.initial_balance // self.n_agents, dtype=np.int64)
+		self.cash = self.initial_balance % self.n_agents
+		self.num_stocks = np.zeros(self.n_agents, dtype=np.int64)
 		self.portfolio_value = self.initial_balance
 		self.prev_portfolio_value = self.initial_balance
 		self.num_buy = 0
 		self.num_sell = 0
 		self.num_hold = 0
 
+		self.stock_portfolio_values.fill(self.initial_stock_balance)
+		self.prev_stock_portfolio_values.fill(self.initial_stock_balance)
+
 	def map_action(self, action):
-		scores_per_stock = action.reshape(self.n_stocks, parameters.NUM_ACTIONS)
-		discrete_actions = np.argmax(scores_per_stock, axis=1)
-		return discrete_actions
+		# 매매 타입 가지수(매수, 매도, 홀딩)에 따른 범위의 경계값 생성
+		# 예: action이 -3~3이라면 points = [-3, -1, 1, 3]
+		points = np.linspace(-1 * self.act_dim, self.act_dim, self.act_dim + 1)
+		points[-1] += 1e-10 # 경계값 예외 위함
+		# values: 범위에 속하는 위치
+		# 예: -2.8 -> [-3, -1] 사이 => 1번째 범위
+		values = np.digitize(action, points)
+		values -= 1
+		return values
 
 	def validate_action(self, action, buy_index, sell_index):
 		if len(buy_index) > 0:
@@ -55,7 +70,7 @@ class Trader:
 		return action
 
 	def act(self, action, stock_codes, f, recode):
-		action = self.map_action(action)
+		# action = self.map_action(action)
 		buy_index = np.where(action == parameters.ACTION_BUY)[0]
 		sell_index = np.where(action == parameters.ACTION_SELL)[0]
 		action = self.validate_action(action, buy_index, sell_index)
@@ -63,6 +78,9 @@ class Trader:
 		# 환경에서 가격 얻기
 		date = self.environment.get_date()
 		curr_prices = self.environment.curr_price()
+
+		# 행동을 취하기 전, 이전 스텝의 자산 가치를 저장
+		self.prev_stock_portfolio_values = np.copy(self.stock_portfolio_values)
 
 		# 즉시 보상 초기화
 		#current_portfolio = self.balance + curr_price * self.num_stocks * (1- parameters.TRADING_TAX)
@@ -89,10 +107,21 @@ class Trader:
 			elif stock_action == parameters.ACTION_HOLD:
 				self.num_hold += 1  # 홀딩 횟수 증가
 
+		# 행동을 취한 후, 현재 시점의 개별 자산 가치를 계산
+		for i in range(self.n_agents):
+			self.stock_portfolio_values[i] = self.balance[i] + (self.num_stocks[i] * curr_prices[i] * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
+
+		# 각 주식의 개별 수익률 계산
+		individual_rewards = (self.stock_portfolio_values - self.prev_stock_portfolio_values) / self.prev_stock_portfolio_values
+		# 0으로 나누는 경우 방지
+		individual_rewards = np.nan_to_num(individual_rewards)
+
 		# 포트폴리오 가치 갱신
 		self.prev_portfolio_value = self.portfolio_value
 		self.portfolio_value = np.sum(self.balance) + \
 							   np.sum(curr_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)) + self.cash
+
+
 		
 		reward = (self.portfolio_value - self.prev_portfolio_value)/self.prev_portfolio_value
 		next_prices = self.environment.next_price()
@@ -106,5 +135,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return reward, future_reward
-
+		return reward, future_reward, individual_rewards
