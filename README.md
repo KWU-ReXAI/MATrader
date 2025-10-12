@@ -13,6 +13,7 @@ python main.py --stock_dir [S2FE 결과 폴더 이름] --output_name [결과 폴
     - `default`: 현재 시각(`%Y%m%d_%H%M%S`)
 
 > **참고**: 세부 하이퍼파라미터는 `main.py` 파일을 참조하세요.
+
 > **참고**: 종목 리스트는 'data/S2FE/result'에 저장하세요.
 
 
