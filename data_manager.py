@@ -9,12 +9,17 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
     dfs = []
     for stock in stocks:
         path = f'{fpath}{stock}.csv'
-        data = pd.read_csv(path, thousands=',',
+        df = pd.read_csv(path, thousands=',',
             converters={'date': lambda x: str(x)})
-        data.columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
-        # 기간 필터링
-        data.replace(0, pd.NA, inplace=True)
-        dfs.append(data)
+        df.drop(columns=['time', 'acml_tr_pbmn', 'datetime'], inplace=True)
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+        df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+        df['adj close'] = df['close']
+        columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+        df = df[columns]
+        dtype_map = {col: 'int64' for col in df.columns if col != 'date'}
+        df = df.astype(dtype_map)
+        dfs.append(df)
     rows_to_keep = ~pd.concat([df.isna().any(axis=1) for df in dfs], axis=1).any(axis=1)
     df_stocks = [df[rows_to_keep] for df in dfs]
     df_stocks = [df.reset_index(drop=True) for df in df_stocks]

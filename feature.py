@@ -17,7 +17,6 @@ class Data(metaclass=abc.ABCMeta):
         self.train = train; self.stock = stock
 
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx:self.end_idx]
 
         self.scaler = StandardScaler()
         self.window_size = window_size

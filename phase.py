@@ -21,7 +21,7 @@ def phase2quarter(s2fe):
 				quarter = row.iloc[1]
 				test_start = row.iloc[2]
 				test_end = row.iloc[3]
-				train_start = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1500)).strftime('%Y-%m-%d')
+				train_start = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
 				train_end = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
 
 				stocks = row.iloc[4:].tolist()

@@ -166,9 +166,9 @@ class MultiStockFetcher:
 if __name__ == "__main__":
     # 예시
     dotenv.load_dotenv()
-    start_date = datetime.date(2025, 9, 23)
-    end_date   = datetime.date(2025, 9, 30)
-    stock_codes = ['001740', '128940']
+    start_date = datetime.date(2025, 10, 1)
+    end_date   = datetime.date(2025, 10, 15)
+    stock_codes = ['005930', '000660', '035720']
 
     fetcher = MultiStockFetcher(os.getenv("REAL_APP_KEY"), os.getenv("REAL_APP_SECRET"), os.getenv("REAL_ACNT_NO"), is_mock=False)  # 실전만 지원
     for code in stock_codes:

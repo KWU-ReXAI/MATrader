@@ -33,7 +33,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--stock_dir', type=str)
 	parser.add_argument('--output_name', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-	parser.add_argument('--ver', choices=['ROK','USA','ETF'], default='ROK')
+	parser.add_argument('--ver', choices=['ROK','USA','RealTime'], default='ROK')
 	parser.add_argument('--algorithm', choices=['mat','td3','dsl','gdpg','gdqn','candle', 'attention','irdpg'], default='mat')
 	parser.add_argument('--test', action='store_true')
 	parser.add_argument('--model_dir', default=' ')
