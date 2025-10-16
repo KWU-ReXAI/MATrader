@@ -6,3 +6,4 @@ run_tf_gpu
 .ipynb_checkpoints/
 .env
 .venv/
+backup/

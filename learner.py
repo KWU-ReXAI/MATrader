@@ -95,10 +95,10 @@ class MATagent:
 				action, action_log_prob, value_pred  = self.network.act(np.array(state))
 
 				# 행동 -> reward(from trading), next_state, done(from env)
-				_, reward = trader.act(action[0], self.stock_codes, f, recode)
+				_, mean_sharpe_reward = trader.act(action[0], self.stock_codes, f, recode)
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
-				self.buffer.add(state, action[0], reward, done, action_log_prob[0], value_pred[0])
+				self.buffer.add(state, action[0], mean_sharpe_reward, done, action_log_prob[0], value_pred[0])
 				episode += 1
 
 			last_value = np.zeros(self.n_agents)
@@ -175,7 +175,7 @@ class MATagent:
 			# Actor picks an action (following the deterministic policy) and retrieve reward
 			action, _, _ = self.network.act(np.array(state))
 			# 행동 -> reward(from trading), next_state, done(from env)
-			reward, _ = trader.act(action[0], self.stock_codes, f, 1)
+			reward, *_ = trader.act(action[0], self.stock_codes, f, 1)
 			memory_reward.append(reward)
 			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
