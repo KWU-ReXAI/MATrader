@@ -91,9 +91,6 @@ class Trader:
 		date = self.environment.get_date()
 		curr_prices = self.environment.curr_price()
 
-		# 행동을 취하기 전, 이전 스텝의 자산 가치를 저장
-		self.prev_stock_portfolio_values = np.copy(self.stock_portfolio_values)
-
 
 		for stock, stock_action in enumerate(action):
 			trading_unit = self.num_stocks[stock]
@@ -117,36 +114,16 @@ class Trader:
 			elif stock_action == parameters.ACTION_HOLD:
 				self.num_hold += 1  # 홀딩 횟수 증가
 
-		# 행동을 취한 후, 현재 시점의 개별 자산 가치를 계산
-		for i in range(self.n_agents):
-			self.stock_portfolio_values[i] = (self.balance // self.n_agents) + (self.num_stocks[i] * curr_prices[i] * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
-
-		# 각 주식의 개별 수익률 계산
-		individual_rewards = (self.stock_portfolio_values - self.prev_stock_portfolio_values) / self.prev_stock_portfolio_values
-		# 0으로 나누는 경우 방지
-		individual_rewards = np.nan_to_num(individual_rewards)
-
 		# 포트폴리오 가치 갱신
 		self.prev_portfolio_value = self.portfolio_value
 		self.portfolio_value = self.balance + \
 							   np.sum(curr_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
+		# 행동을 취하기 전, 이전 스텝의 자산 가치를 저장
+		self.prev_stock_portfolio_values = np.copy(self.stock_portfolio_values)
 
 
 		
 		reward = (self.portfolio_value - self.prev_portfolio_value)/self.prev_portfolio_value
-
-		# 각 종목의 일일 수익률을 개별 히스토리에 기록
-		for i in range(self.n_agents):
-			self.individual_reward_history[i].append(individual_rewards[i])
-
-		individual_sharpes = []
-		for history in self.individual_reward_history:
-			#sr = 0 if len(history) <= 1 else np.mean(history) * np.sqrt(len(history)) / (np.std(history) + 1e-10)
-			sr = 0 if len(history) <= 1 else np.mean(history) / (np.std(history) + 1e-10)
-			individual_sharpes.append(sr)
-
-		# 최종 학습 보상은 개별 샤프 지수들의 평균으로 결정
-		mean_sharpe_reward = np.mean(individual_sharpes)
 
 		next_prices = self.environment.next_price()
 		future_pv = self.balance + \
@@ -158,5 +135,34 @@ class Trader:
 						+ str(self.num_stocks[idx]) +"," + str(self.portfolio_value) + "\n")
 					
 		self.environment.idx += 1
+
+		####################################################################################################################
+		future_stock_portfolio_values = np.full(self.n_agents, 0, dtype=np.float32)
+		# 행동을 취한 후, 현재 시점의 개별 자산 가치를 계산
+		for i in range(self.n_agents):
+			self.stock_portfolio_values[i] = (self.balance // self.n_agents) + (
+						self.num_stocks[i] * curr_prices[i] * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
+			future_stock_portfolio_values[i] = (self.balance // self.n_agents) + (
+						self.num_stocks[i] * next_prices[i] * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
+
+		# 각 주식의 개별 수익률 계산
+		individual_rewards = (future_stock_portfolio_values - self.stock_portfolio_values) / self.stock_portfolio_values
+		# 0으로 나누는 경우 방지
+		individual_rewards = np.nan_to_num(individual_rewards)
+
+			# 각 종목의 일일 수익률을 개별 히스토리에 기록
+		for i in range(self.n_agents):
+			self.individual_reward_history[i].append(individual_rewards[i])
+
+		individual_sharpes = []
+		for history in self.individual_reward_history:
+			sr = 0 if len(history) <= 1 else np.mean(history) / (np.std(history) + 1e-10)
+			individual_sharpes.append(sr)
+		# 최종 학습 보상은 개별 샤프 지수들의 평균으로 결정
+		mean_sharpe_reward = np.mean(individual_sharpes)
+
+		self.reward_history.append(future_reward)
+		total_sharpe_reward = 0 if len(self.reward_history) <= 1 else np.mean(self.reward_history) / (
+					np.std(self.reward_history) + 1e-10)
 		
-		return reward, future_reward, individual_rewards, mean_sharpe_reward
+		return reward, future_reward, individual_rewards, total_sharpe_reward, mean_sharpe_reward, individual_sharpes
