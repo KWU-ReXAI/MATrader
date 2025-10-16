@@ -15,8 +15,7 @@ class Trader:
 		self.n_agents = n_agents # 거래하는 종목 수
 		self.act_dim = parameters.NUM_ACTIONS # 종목별 거래 타입 개수(3개: 매수, 매도, 홀딩)
 		# 포트폴리오 관련
-		self.balance = np.full(n_agents, balance // n_agents, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
-		self.cash = balance % n_agents # 종목 별로 잔고 동등하게 나누고 남은 현금
+		self.balance = balance
 		self.num_stocks = np.zeros(n_agents, dtype=np.int64)  # 종목별 보유 주식 수
 		# 포트폴리오 가치: balance + num_stocks * {현재 주식 가격} * (1-수수료)
 		self.portfolio_value = balance
@@ -27,8 +26,7 @@ class Trader:
 		self.num_hold = 0  # 홀딩 횟수
 
 	def reset(self):
-		self.balance = np.full(self.n_agents, self.initial_balance // self.n_agents, dtype=np.int64)
-		self.cash = self.initial_balance % self.n_agents
+		self.balance = self.initial_balance
 		self.num_stocks = np.zeros(self.n_agents, dtype=np.int64)
 		self.portfolio_value = self.initial_balance
 		self.prev_portfolio_value = self.initial_balance
@@ -51,7 +49,7 @@ class Trader:
 		if len(buy_index) > 0:
 			# 사는 종목들이 각각 적어도 1주를 살 수 있는지 확인
 			for index in buy_index:
-				if self.balance[index] < self.environment.curr_price()[index]:
+				if self.balance // self.n_agents < self.environment.curr_price()[index]:
 					action[index] = parameters.ACTION_HOLD
 		if len(sell_index) > 0:
 			# 주식 잔고가 있는지 확인
@@ -80,16 +78,16 @@ class Trader:
 			if stock_action == parameters.ACTION_BUY:
 				# 매수할 단위를 판단
 				if recode: self.environment.set_buy_signal(stock)
-				trading_unit = self.balance[stock] // curr_price
+				trading_unit = (self.balance // self.n_agents) // curr_price
 				self.num_stocks[stock] += trading_unit  # 보유 주식 수를 갱신
-				self.balance[stock] -= curr_price * trading_unit * (1 + parameters.TRADING_CHARGE)  # 보유 현금을 갱신
+				self.balance -= curr_price * trading_unit * (1 + parameters.TRADING_CHARGE)  # 보유 현금을 갱신
 				self.num_buy += 1  # 매수 횟수 증가
 			# 매도
 			elif stock_action == parameters.ACTION_SELL:
 				if recode: self.environment.set_sell_signal(stock)
 				invest_amount = curr_price * trading_unit * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)
 				self.num_stocks[stock] -= trading_unit  # 보유 주식 수를 갱신
-				self.balance[stock] += invest_amount  # 보유 현금을 갱신
+				self.balance += invest_amount  # 보유 현금을 갱신
 				self.num_sell += 1  # 매도 횟수 증가
 			# 홀딩
 			elif stock_action == parameters.ACTION_HOLD:
@@ -97,13 +95,13 @@ class Trader:
 
 		# 포트폴리오 가치 갱신
 		self.prev_portfolio_value = self.portfolio_value
-		self.portfolio_value = np.sum(self.balance) + \
-							   np.sum(curr_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)) + self.cash
+		self.portfolio_value = self.balance + \
+							   np.sum(curr_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
 		
 		reward = (self.portfolio_value - self.prev_portfolio_value)/self.prev_portfolio_value
 		next_prices = self.environment.next_price()
-		future_pv = np.sum(self.balance) + \
-							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)) + self.cash
+		future_pv = self.balance + \
+							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
 		future_reward = (future_pv - self.portfolio_value)/self.portfolio_value
 		if recode:
 			for idx, curr_price in enumerate(curr_prices):
