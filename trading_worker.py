@@ -6,6 +6,7 @@ import dotenv
 import logging
 import numpy as np
 import pandas as pd
+from functools import reduce
 from datetime import datetime
 from network import MultiAgentTransformer
 from feature import Cluster_Data
@@ -25,78 +26,29 @@ class RealtimeEnvironment:
         datas = []
         for stock in stocks:
             df = self.api.get_minute_candles_all_today(stock, max_pages=3)
-            df.drop(columns=['time', 'acml_tr_pbmn', 'datetime'], inplace=True)
+            df.drop(columns=['time', 'acml_tr_pbmn'], inplace=True)
+            df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+            df['date'] = df['date'].dt.strftime('%Y-%m-%d')
             df['adj close'] = df['close']
-            columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+            columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume', 'datetime']
             df = df[columns]
-            dtype_map = {col: 'int64' for col in df.columns if col != 'date'}
+            dtype_map = {col: 'int64' for col in df.columns if col != 'date' and col != 'datetime'}
             df = df.astype(dtype_map)
             datas.append(df)
+        common_values = reduce(
+            lambda left, right: left.intersection(right),
+            [set(df['datetime']) for df in datas]
+        )
+        datas = [df[df['datetime'].isin(common_values)].reset_index(drop=True) for df in datas]
+        datas = [df.drop(columns=['datetime']) for df in datas]
         test_datas = []
         for idx, data in enumerate(datas):
-            test_feature = Cluster_Data(stocks[idx], data, self.fmpath,
+            test_feature = Cluster_Data(stocks[idx], data, 1, self.fmpath,
                                         train=False)
             test_data = test_feature.load_data(0, 0, realtime=True)
             test_datas.append(test_data)
         test_data = np.stack(test_datas, axis=1)
-        return test_data # done은 일단 뺐음
-
-class RealTimeTrader:
-    def __init__(self, environment, stocks, act_dim, api):
-        # 환경
-        self.environment = environment
-        self.stocks = stocks
-        self.api = api
-        # Trader 클래스의 속성
-        self.initial_balance = None
-        self.act_dim = act_dim  # 액션 수
-        self.n_stocks = len(stocks)
-        # 포트폴리오 관련
-        self.balance = None
-        self.running = False
-        self.charge = 0.000142
-        self.tax = 0.0015
-
-    def map_holdings(self, holdings, stock):
-        for holding in holdings:
-            if holding['iscd'] == stock:
-                return holding['qty']
-        return 0
-
-    def act(self, action, balance_data):
-        if not self.running:
-            balance, holdings = balance_data['deposit'], balance_data['holdings']
-            self.initial_balance = balance
-            self.balance = np.full(self.n_stocks, balance // self.n_stocks, dtype=np.int64)  # 종목별 잔고: 동등하게 분배
-            self.running = True
-        else: holdings = balance_data['holdings']
-
-        # 주식별 매매
-        for stock, stock_action in enumerate(action):
-            trading_unit = self.map_holdings(holdings, self.stocks[stock]['iscd'])
-            # 매수
-            if stock_action == parameters.ACTION_BUY:
-                curr_price, _ = self.api.get_asking_price(self.stocks[stock]['iscd'])
-                trading_unit = int(self.balance[stock] // (curr_price * (1 + self.charge))) if curr_price else 0
-                if trading_unit <= 0: action[stock] = parameters.ACTION_HOLD
-                else:
-                    res = self.api.order_cash(self.stocks[stock]['iscd'], trading_unit, 0, '02', order_type='01')
-                    if res and res.get('rt_cd') == '0':
-                        logging.info(f'{self.stocks[stock]['name']} 매수 주문 접수')
-                        self.balance[stock] -= curr_price * trading_unit * (1 + self.charge)	# 보유 현금을 갱신
-                    else: action[stock] = parameters.ACTION_HOLD
-            # 매도
-            elif stock_action == parameters.ACTION_SELL:
-                _, curr_price = self.api.get_asking_price(self.stocks[stock]['iscd'])
-                if trading_unit <= 0 or not curr_price: action[stock] = parameters.ACTION_HOLD
-                else:
-                    res = self.api.order_cash(self.stocks[stock]['iscd'], trading_unit, 0, '01', order_type='01')
-                    if res and res.get('rt_cd') == '0':
-                        logging.info(f'{self.stocks[stock]['name']} 매도 주문 접수')
-                        self.balance[stock] += curr_price * trading_unit * (1 - self.charge - self.tax)	# 보유 현금을 갱신
-                    else: action[stock] = parameters.ACTION_HOLD
-
-        return action
+        return test_data # done은 일단 제외
 
 # class TradingWorker(QThread):
 class TradingWorker:
@@ -158,6 +110,9 @@ class TradingWorker:
                 balance_data = self.api.get_account_balance()
                 if balance_data:
                     # self.account_summary_signal.emit(balance_data)
+                    logging.info(f"잔액: {balance_data['deposit']}")
+                    for holding in balance_data['holdings']:
+                        logging.info(f"종목: {holding['name']} 수량: {holding['qty']}")
                     logging.info("계좌 잔고 정보 업데이트 완료.")
                 else:
                     logging.warning("계좌 잔고 정보 조회에 실패했습니다.")

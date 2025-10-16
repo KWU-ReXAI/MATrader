@@ -1,4 +1,5 @@
 import pandas as pd
+from functools import reduce
 import numpy as np
 from feature import Cluster_Data
 from tqdm import tqdm
@@ -11,18 +12,21 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
         path = f'{fpath}{stock}.csv'
         df = pd.read_csv(path, thousands=',',
             converters={'date': lambda x: str(x)})
-        df.drop(columns=['time', 'acml_tr_pbmn', 'datetime'], inplace=True)
+        df.drop(columns=['time', 'acml_tr_pbmn'], inplace=True)
         df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df['date'] = df['date'].dt.strftime('%Y-%m-%d')
         df['adj close'] = df['close']
-        columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+        columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume', 'datetime']
         df = df[columns]
-        dtype_map = {col: 'int64' for col in df.columns if col != 'date'}
+        dtype_map = {col: 'int64' for col in df.columns if col != 'date' and col != 'datetime'}
         df = df.astype(dtype_map)
         dfs.append(df)
-    rows_to_keep = ~pd.concat([df.isna().any(axis=1) for df in dfs], axis=1).any(axis=1)
-    df_stocks = [df[rows_to_keep] for df in dfs]
-    df_stocks = [df.reset_index(drop=True) for df in df_stocks]
+    common_values = reduce(
+        lambda left, right: left.intersection(right),
+        [set(df['datetime']) for df in dfs]
+    )
+    df_stocks = [df[df['datetime'].isin(common_values)].reset_index(drop=True) for df in dfs]
+    df_stocks = [df.drop(columns=['datetime']) for df in df_stocks]
 
     if train:
         train_chart_datas = []

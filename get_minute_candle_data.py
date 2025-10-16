@@ -2,12 +2,19 @@
 
 import datetime
 import pandas as pd
-import os
+import os, sys
 import json
 import time
 import requests
 import dotenv
-from kis_api import KISApiHandler  # kis_api.py의 get_access_token 재사용
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from kis_api import KISApiHandler
+
+MARKET_OPEN = "090000"
+MARKET_CLOSE = "153000"
 
 class MultiStockFetcher:
     def __init__(self, app_key, app_secret, acnt_no, is_mock=False):
@@ -21,71 +28,38 @@ class MultiStockFetcher:
         )
 
     def get_minute_data_one_day(self, stock_code: str, ymd: str):
-        # 1) 토큰을 변수로 받되, 방어적으로 self.api.access_token 재확인
         token = self.api.get_access_token() or self.api.access_token
 
         url = f"{self.api.url_base}/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
-        base_headers = {
+        headers = {
             "authorization": f"Bearer {token}",
             "appkey": self.api.app_key,
             "appsecret": self.api.app_secret,
-            "tr_id": "FHKST03010230",  # 국내주식-213 (실전)
-            "Content-Type": "application/json",
+            "tr_id": "FHKST03010230",     # 실전
+            "content-type": "application/json",
             "accept": "application/json",
             "custtype": "P",
         }
 
-        # 2) 보수적 → 점진적 재시도(파라미터 조합)
-        variants = [
-            # (1) 가장 기본: 00:00부터, 과거 미포함, FAKE 파라미터 보내지 않음
-            {
+        # 앵커 시각을 여러 개로 나눠 전체 시간대를 커버
+        anchors = ["105900", "125900", "145900", "153000"]
+
+        dfs = []
+        last_err = None
+
+        for hhmmss in anchors:
+            params = {
                 "FID_COND_MRKT_DIV_CODE": "J",
                 "FID_INPUT_ISCD": stock_code,
-                "FID_INPUT_HOUR_1": "000000",
-                "FID_INPUT_DATE_1": ymd,
-                "FID_PW_DATA_INCU_YN": "N",
-            },
-            # (2) 과거 포함
-            {
-                "FID_COND_MRKT_DIV_CODE": "J",
-                "FID_INPUT_ISCD": stock_code,
-                "FID_INPUT_HOUR_1": "000000",
+                "FID_INPUT_HOUR_1": hhmmss,
                 "FID_INPUT_DATE_1": ymd,
                 "FID_PW_DATA_INCU_YN": "Y",
-            },
-            # (3) 시작 09:00
-            {
-                "FID_COND_MRKT_DIV_CODE": "J",
-                "FID_INPUT_ISCD": stock_code,
-                "FID_INPUT_HOUR_1": "090000",
-                "FID_INPUT_DATE_1": ymd,
-                "FID_PW_DATA_INCU_YN": "N",
-            },
-            # (4) 허봉 파라미터를 "N"으로 명시
-            {
-                "FID_COND_MRKT_DIV_CODE": "J",
-                "FID_INPUT_ISCD": stock_code,
-                "FID_INPUT_HOUR_1": "000000",
-                "FID_INPUT_DATE_1": ymd,
-                "FID_PW_DATA_INCU_YN": "N",
-                "FID_FAKE_TICK_INCU_YN": "N",
-            },
-            # (5) 시장 통합으로 재시도(혹시 모를 케이스)
-            {
-                "FID_COND_MRKT_DIV_CODE": "UN",
-                "FID_INPUT_ISCD": stock_code,
-                "FID_INPUT_HOUR_1": "000000",
-                "FID_INPUT_DATE_1": ymd,
-                "FID_PW_DATA_INCU_YN": "N",
-            },
-        ]
-
-        last_err = None
-        for params in variants:
+                "FID_FAKE_TICK_INCU_YN": " ",
+            }
             try:
-                r = requests.get(url, headers=base_headers, params=params, timeout=12)
+                r = requests.get(url, headers=headers, params=params, timeout=12)
                 if r.status_code >= 500:
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                     continue
                 r.raise_for_status()
                 data = r.json()
@@ -94,12 +68,15 @@ class MultiStockFetcher:
                     last_err = data.get("msg1", "rt_cd != 0")
                     continue
 
-                rows = data.get("output2", [])
+                rows = data.get("output2", []) or []
                 if not rows:
                     last_err = "empty output2"
                     continue
 
                 df = pd.DataFrame(rows)
+                if df.empty:
+                    continue
+
                 rename = {
                     "stck_bsop_date": "date",
                     "stck_cntg_hour": "time",
@@ -110,22 +87,57 @@ class MultiStockFetcher:
                     "cntg_vol": "volume",
                 }
                 df.rename(columns={k: v for k, v in rename.items() if k in df.columns}, inplace=True)
-                for col in ["open", "high", "low", "close", "volume"]:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-                if {"date", "time"}.issubset(df.columns):
-                    df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"], format="%Y%m%d %H%M%S", errors="coerce")
-                    df.drop_duplicates(subset=["date", "time"], inplace=True)
-                    df.sort_values(["date", "time"], inplace=True)
-                df.reset_index(drop=True, inplace=True)
-                return df
+                dfs.append(df)
 
             except Exception as e:
                 last_err = str(e)
-                time.sleep(0.35)
+                time.sleep(0.3)
+                continue
 
-        print(f"[{stock_code}] {ymd} 실패: {last_err}")
-        return pd.DataFrame()
+        if not dfs:
+            print(f"[{stock_code}] {ymd} 실패: {last_err}")
+            return pd.DataFrame()
+
+        # ---- 누적 병합 + 정리 ----
+        out = pd.concat(dfs, ignore_index=True)
+
+        # 당일만 남기기
+        if "stck_bsop_date" in out.columns:
+            out = out[out["stck_bsop_date"] == ymd]
+        elif "date" in out.columns:
+            out = out[out["date"] == ymd]
+
+        # 표준 컬럼명 통일(다시 한 번 보정)
+        rename = {
+            "stck_bsop_date": "date",
+            "stck_cntg_hour": "time",
+            "stck_oprc": "open",
+            "stck_hgpr": "high",
+            "stck_lwpr": "low",
+            "stck_prpr": "close",
+            "cntg_vol": "volume",
+        }
+        out.rename(columns={k: v for k, v in rename.items() if k in out.columns}, inplace=True)
+
+        # 숫자형 변환
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in out.columns:
+                out[col] = pd.to_numeric(out[col], errors="coerce")
+
+        # 시간 문자열 정규화 및 장시간대 필터
+        if "time" in out.columns:
+            out["time"] = out["time"].astype(str).str.zfill(6)
+            out = out[(out["time"] >= MARKET_OPEN) & (out["time"] <= MARKET_CLOSE)]
+
+        # 중복 제거 + 정렬
+        if {"date", "time"}.issubset(out.columns):
+            out.drop_duplicates(subset=["date", "time"], inplace=True)
+            out.sort_values(["date", "time"], inplace=True)
+            out["datetime"] = pd.to_datetime(out["date"] + " " + out["time"], format="%Y%m%d %H%M%S", errors="coerce")
+        out.reset_index(drop=True, inplace=True)
+
+        return out
+
 
     def fetch_and_save(self, stock_code: str, start_date: datetime.date, end_date: datetime.date, delay_sec: float = 0.2):
         """
