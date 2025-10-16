@@ -106,10 +106,10 @@ class MATagent:
 				final_rewards = individual_rewards + cooperation_reward # 최종 보상 = 개별 수익률 + 협력 보상"""
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
-				self.buffer.add(state, action[0], reward, done, action_log_prob[0], value_pred[0])
+				#self.buffer.add(state, action[0], reward, done, action_log_prob[0], value_pred[0])
 				#self.buffer.add(state, action[0], final_rewards, done, action_log_prob[0], value_pred[0])
 				#self.buffer.add(state, action[0], total_sharpe_reward, done, action_log_prob[0], value_pred[0])
-				#self.buffer.add(state, action[0], mean_sharpe_reward, done, action_log_prob[0], value_pred[0])
+				self.buffer.add(state, action[0], mean_sharpe_reward, done, action_log_prob[0], value_pred[0])
 				#self.buffer.add(state, action[0], individual_sharpes, done, action_log_prob[0], value_pred[0])
 				episode += 1
 
