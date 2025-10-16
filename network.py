@@ -43,7 +43,6 @@ class EncodeBlock(nn.Module):
         self.ln2 = nn.LayerNorm(n_embd)
         self.attn = SelfAttention(n_embd, n_head, n_agent)
         self.mlp = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(),
-                                 #nn.Dropout(p=0.1), # dropout layer 추가
                                  init_(nn.Linear(n_embd, n_embd)))
 
     def forward(self, x):
@@ -60,7 +59,6 @@ class DecodeBlock(nn.Module):
         self.attn1 = SelfAttention(n_embd, n_head, n_agent, masked=True)
         self.attn2 = SelfAttention(n_embd, n_head, n_agent, masked=True)
         self.mlp = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(),
-                                 #nn.Dropout(p=0.1), # dropout layer 추가
                                  init_(nn.Linear(n_embd, n_embd)))
 
     def forward(self, x, rep_enc):
@@ -72,16 +70,7 @@ class DecodeBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, obs_dim, n_block, n_embd, n_head, n_agent):
         super(Encoder, self).__init__()
-        hidden_dim = n_embd * 2
-        self.obs_encoder = nn.Sequential(
-            nn.LayerNorm(obs_dim),
-            init_(nn.Linear(obs_dim, hidden_dim), activate=True),
-            nn.GELU(),
-            nn.LayerNorm(hidden_dim),  # 중간에 LayerNorm 추가하여 안정성 확보
-            init_(nn.Linear(hidden_dim, n_embd), activate=True),
-            nn.GELU()
-        ) # deeper Encoder
-        #self.obs_encoder = nn.Sequential(nn.LayerNorm(obs_dim), init_(nn.Linear(obs_dim, n_embd), activate=True),nn.GELU())
+        self.obs_encoder = nn.Sequential(nn.LayerNorm(obs_dim), init_(nn.Linear(obs_dim, n_embd), activate=True),nn.GELU())
         self.ln = nn.LayerNorm(n_embd)
         self.blocks = nn.Sequential(*[EncodeBlock(n_embd, n_head, n_agent) for _ in range(n_block)])
         self.head = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(), nn.LayerNorm(n_embd),

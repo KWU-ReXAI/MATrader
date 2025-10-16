@@ -2,6 +2,7 @@ import os
 import logging
 import itertools
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from collections import deque
 import threading
@@ -94,7 +95,7 @@ class MATagent:
 				action, action_log_prob, value_pred  = self.network.act(np.array(state))
 
 				# 행동 -> reward(from trading), next_state, done(from env)
-				_, reward, individual_rewards = trader.act(action[0], self.stock_codes, f, recode)
+				_, reward, individual_rewards, individual_sharpe_reward = trader.act(action[0], self.stock_codes, f, recode)
 				"""mean_reward = np.mean(individual_rewards) # 개별 보상의 평균 구함
 
 				final_rewards = individual_rewards + (individual_rewards - mean_reward) # 최종 보상 = 개별 수익률 + 경쟁 보너스/패널티"""
@@ -107,6 +108,8 @@ class MATagent:
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
 				self.buffer.add(state, action[0], reward, done, action_log_prob[0], value_pred[0])
 				#self.buffer.add(state, action[0], final_rewards, done, action_log_prob[0], value_pred[0])
+				#self.buffer.add(state, action[0], sharpe_reward, done, action_log_prob[0], value_pred[0])
+				#self.buffer.add(state, action[0], individual_sharpe_reward, done, action_log_prob[0], value_pred[0])
 				episode += 1
 
 			last_value = np.zeros(self.n_agents)
@@ -183,11 +186,12 @@ class MATagent:
 			# Actor picks an action (following the deterministic policy) and retrieve reward
 			action, _, _ = self.network.act(np.array(state))
 			# 행동 -> reward(from trading), next_state, done(from env)
-			reward, _ ,_= trader.act(action[0], self.stock_codes, f, 1)
+			reward, *_ = trader.act(action[0], self.stock_codes, f, 1)
 			memory_reward.append(reward)
 			memory_pv.append(trader.portfolio_value)
 			state, done = environment.build_state()
 		# Sharpe Ratio
+		rr = trader.portfolio_value / self.balance - 1
 		sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward))/ (np.std(memory_reward) + 1e-10)
 		mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
 												in zip(itertools.accumulate(memory_pv, max), memory_pv))
@@ -199,5 +203,5 @@ class MATagent:
 															  trader.num_stocks, trader.portfolio_value,
 															  sr, mdd))
 		environment.plt_result(plt_path, self.stock_codes)
-
-		return trader.portfolio_value
+		df = pd.DataFrame({'quarter': [self.quarter], 'rr': [rr], 'sr': [sr], 'mdd': [mdd]})
+		return df
