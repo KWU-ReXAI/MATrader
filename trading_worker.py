@@ -124,9 +124,9 @@ class TradingWorker:
                     buy_signal = True if policy[0][idx] == parameters.ACTION_BUY else False
                     sell_signal = True if policy[0][idx] == parameters.ACTION_SELL else False
                     buy_price, sell_price = self.api.get_asking_price(stock['iscd'])
-                    trading_unit = self.calculate_trading_unit(buy_price,
-                                                               balance_data['deposit'],
-                                                               len(self.stock_list))
+                    stock['price'] = self.api.get_current_price(stock['iscd'])
+                    trading_unit = self.calculate_trading_unit(buy_price, balance_data['deposit'], len(self.stock_list))
+                    stock['signal'] = "대기"
                     if buy_signal and trading_unit > 0:
                         stock['signal'] = "매수 신호"
                         logging.info(f"[{stock['name']}] 매수 신호 발생!")
