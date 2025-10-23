@@ -77,7 +77,7 @@ class Trader:
 		#if (current_portfolio - self.prev_protfolio_value) / self.prev_protfolio_value >= self.delayed_reward_threshold and self.num_stocks > 0 : action = parameters.ACTION_SELL
 		for stock, stock_action in enumerate(action):
 			curr_price = curr_prices[stock]
-			trading_unit = (self.balance // self.n_agents) // curr_price
+			trading_unit = (self.balance // self.n_agents) // curr_price * (1 + parameters.TRADING_CHARGE)
 			# 매수
 			if stock_action == parameters.ACTION_BUY and trading_unit > 0:
 				# 매수할 단위를 판단
