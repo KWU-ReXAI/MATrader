@@ -95,22 +95,10 @@ class MATagent:
 				action, action_log_prob, value_pred  = self.network.act(np.array(state))
 
 				# 행동 -> reward(from trading), next_state, done(from env)
-				_, reward, individual_rewards, total_sharpe_reward, mean_sharpe_reward, individual_sharpes = trader.act(action[0], self.stock_codes, f, recode)
-				"""mean_reward = np.mean(individual_rewards) # 개별 보상의 평균 구함
-
-				final_rewards = individual_rewards + (individual_rewards - mean_reward) # 최종 보상 = 개별 수익률 + 경쟁 보너스/패널티"""
-
-				"""volatility = np.std(individual_rewards) # 개별 보상의 표준편차이자 변동성 구함
-				cooperation_reward = -volatility * 0.01 # 변동성이 클수록 패널티가 커짐
-
-				final_rewards = individual_rewards + cooperation_reward # 최종 보상 = 개별 수익률 + 협력 보상"""
+				_, future_reward, sharpe_reward = trader.act(action[0], self.stock_codes, f, recode)
 
 				next_state, done = environment.build_state() # 액션 취한 후 next_state 구하기 위함
-				#self.buffer.add(state, action[0], reward, done, action_log_prob[0], value_pred[0])
-				#self.buffer.add(state, action[0], final_rewards, done, action_log_prob[0], value_pred[0])
-				#self.buffer.add(state, action[0], total_sharpe_reward, done, action_log_prob[0], value_pred[0])
-				self.buffer.add(state, action[0], mean_sharpe_reward, done, action_log_prob[0], value_pred[0])
-				#self.buffer.add(state, action[0], individual_sharpes, done, action_log_prob[0], value_pred[0])
+				self.buffer.add(state, action[0], sharpe_reward, done, action_log_prob[0], value_pred[0])
 				episode += 1
 
 			last_value = np.zeros(self.n_agents)
