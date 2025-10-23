@@ -25,6 +25,10 @@ class Trader:
 		self.num_sell = 0  # 매도 횟수
 		self.num_hold = 0  # 홀딩 횟수
 
+		# 샤프지수 계산을 위한 최근 수익률 저장소
+		self.reward_window = 20
+		self.reward_history = deque(maxlen=self.reward_window)
+
 	def reset(self):
 		self.balance = self.initial_balance
 		self.num_stocks = np.zeros(self.n_agents, dtype=np.int64)
@@ -72,25 +76,24 @@ class Trader:
 		#current_portfolio = self.balance + curr_price * self.num_stocks * (1- parameters.TRADING_TAX)
 		#if (current_portfolio - self.prev_protfolio_value) / self.prev_protfolio_value >= self.delayed_reward_threshold and self.num_stocks > 0 : action = parameters.ACTION_SELL
 		for stock, stock_action in enumerate(action):
-			trading_unit = self.num_stocks[stock]
 			curr_price = curr_prices[stock]
+			trading_unit = (self.balance // self.n_agents) // curr_price
 			# 매수
-			if stock_action == parameters.ACTION_BUY:
+			if stock_action == parameters.ACTION_BUY and trading_unit > 0:
 				# 매수할 단위를 판단
 				if recode: self.environment.set_buy_signal(stock)
-				trading_unit = (self.balance // self.n_agents) // curr_price
 				self.num_stocks[stock] += trading_unit  # 보유 주식 수를 갱신
 				self.balance -= curr_price * trading_unit * (1 + parameters.TRADING_CHARGE)  # 보유 현금을 갱신
 				self.num_buy += 1  # 매수 횟수 증가
 			# 매도
-			elif stock_action == parameters.ACTION_SELL:
+			elif stock_action == parameters.ACTION_SELL and self.num_stocks[stock] > 0:
 				if recode: self.environment.set_sell_signal(stock)
-				invest_amount = curr_price * trading_unit * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)
-				self.num_stocks[stock] -= trading_unit  # 보유 주식 수를 갱신
+				invest_amount = curr_price * self.num_stocks[stock] * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE)
+				self.num_stocks[stock] = 0  # 보유 주식 수를 갱신
 				self.balance += invest_amount  # 보유 현금을 갱신
 				self.num_sell += 1  # 매도 횟수 증가
 			# 홀딩
-			elif stock_action == parameters.ACTION_HOLD:
+			else:
 				self.num_hold += 1  # 홀딩 횟수 증가
 
 		# 포트폴리오 가치 갱신
@@ -103,6 +106,12 @@ class Trader:
 		future_pv = self.balance + \
 							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
 		future_reward = (future_pv - self.portfolio_value)/self.portfolio_value
+		self.reward_history.append(future_reward)
+		# SR 계산
+		returns = np.array(self.reward_history)
+		downside_returns = returns[returns < 0]
+		down_stddev = np.std(downside_returns) + 1e-10 if len(downside_returns) > 0 else 1e-10
+		sortino_ratio = np.mean(returns) / down_stddev
 		if recode:
 			for idx, curr_price in enumerate(curr_prices):
 				f.write(str(date) +"," + str(stock_codes[idx]).zfill(6) + "," + str(curr_price) +"," + str(action[idx]) +","\
@@ -110,4 +119,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return reward, future_reward
+		return reward, sortino_ratio
