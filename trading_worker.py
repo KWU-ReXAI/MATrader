@@ -110,9 +110,12 @@ class TradingWorker:
                 balance_data = self.api.get_account_balance()
                 if balance_data:
                     # self.account_summary_signal.emit(balance_data)
-                    logging.info(f"잔액: {balance_data['deposit']}")
+                    # 초기 stock 수량 정보 불러오기
                     for holding in balance_data['holdings']:
-                        logging.info(f"종목: {holding['name']} 수량: {holding['qty']}")
+                        for stock in self.stock_list:
+                            if stock['iscd'] == holding['iscd']:
+                                stock['qty'] = holding['qty']
+                    # self.update_table_signal.emit(self.stock_list)
                     logging.info("계좌 잔고 정보 업데이트 완료.")
                 else:
                     logging.warning("계좌 잔고 정보 조회에 실패했습니다.")
@@ -161,7 +164,12 @@ class TradingWorker:
                                 stock['qty'] = 0
 
                     # self.update_table_signal.emit(self.stock_list)
-
+                balance_data = self.api.get_account_balance()
+                if balance_data:
+                    # self.account_summary_signal.emit(balance_data)
+                    logging.info("거래 후 계좌 잔고 정보 업데이트 완료.")
+                else:
+                    logging.warning("계좌 잔고 정보 조회에 실패했습니다.")
                 logging.info(f"모든 종목 확인 완료. {180}초 후 다시 시작합니다.")
                 for _ in range(180):
                     if not self.is_running: break
