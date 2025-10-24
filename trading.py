@@ -106,12 +106,18 @@ class Trader:
 		future_pv = self.balance + \
 							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
 		future_reward = (future_pv - self.portfolio_value)/self.portfolio_value
+		future_log_reward = np.log(future_pv) - np.log(self.portfolio_value)
+		######### SR, sortino ratio 계산 #########
 		self.reward_history.append(future_reward)
-		# SR 계산
 		returns = np.array(self.reward_history)
 		downside_returns = returns[returns < 0]
+
+		stddev = np.std(returns) + 1e-10 if len(returns) > 0 else 0
 		down_stddev = np.std(downside_returns) + 1e-10 if len(downside_returns) > 0 else 1e-10
+
+		sharpe_ratio = np.mean(returns) / stddev
 		sortino_ratio = np.mean(returns) / down_stddev
+		##########################################
 		if recode:
 			for idx, curr_price in enumerate(curr_prices):
 				f.write(str(date) +"," + str(stock_codes[idx]).zfill(6) + "," + str(curr_price) +"," + str(action[idx]) +","\
@@ -119,4 +125,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return reward, sortino_ratio
+		return reward, future_reward
