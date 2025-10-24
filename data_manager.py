@@ -7,7 +7,7 @@ from kis_api import KISApiHandler  # KISApiHandler 임포트
 from datetime import datetime, timedelta # 시간 관련 모듈 임포트
 import logging
 
-def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, test_end, window_size=1,feature_window = 1,algorithm='td3', train=True):
+def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, test_end, window_size=1,train=True):
     # 특정 주식의 거래 정지 기간이 훈련(테스트) 기간 내 포함되면,
     # 모든 주식들 그 기간에 거래 안 함
     dfs = []
@@ -30,10 +30,10 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
 
     for idx, data in enumerate(tqdm(df_stocks, desc='Data preprocessing')):
         if train:
-            train_feature = Cluster_Data(stocks[idx], data,train_start, train_end, window_size, fmpath, feature_window, train=True)
+            train_feature = Cluster_Data(stocks[idx], data,train_start, train_end, window_size, fmpath, train=True)
             train_data = train_feature.load_data()
             train_chart_data = data[(data['date'] >= str(train_start)) & (data['date'] <= str(train_end))].dropna()
-        test_feature = Cluster_Data(stocks[idx], data, test_start, test_end, window_size, fmpath, feature_window, train=False)
+        test_feature = Cluster_Data(stocks[idx], data, test_start, test_end, window_size, fmpath, train=False)
         test_data = test_feature.load_data()
         test_chart_data = data[(data['date'] >= str(test_start)) & (data['date'] <= str(test_end))].dropna()
 

@@ -10,7 +10,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "0"
 np.random.seed(42)
 class Data(metaclass=abc.ABCMeta):
-    def __init__(self, stock, data, start, end, window_size = 1, fmpath = None, feature_window=1, train=True):
+    def __init__(self, stock, data, start, end, window_size = 1, fmpath = None, train=True):
         self.open = data['open']; self.close = data['close']; self.high = data['high']
         self.low = data['low']; self.adj_close = data['adj close']; self.volume = data['volume']
         self.original_data = pd.DataFrame({"date":data['date']})
@@ -20,12 +20,9 @@ class Data(metaclass=abc.ABCMeta):
         self.end_idx = len(self.original_data[(self.original_data['date'] <= str(end))])
 
         self.data = self.original_data.copy()
-        self.data = self.data[self.start_idx:self.end_idx]
+        self.data = self.data[self.start_idx-window_size+1:self.end_idx]
 
-        self.scaler = StandardScaler()
         self.window_size = window_size
-        self.feature_window = feature_window
-        if feature_window < window_size : self.feature_window = window_size
         self.fmpath = fmpath
     @abc.abstractmethod
     def load_data(self):
@@ -54,6 +51,7 @@ class Cluster_Data(Data):
         self.volatility_indicator() #3
         del self.data['date']
 
+        self.data = self.data[self.window_size-1:]
         windows_data = np.array(self.data)
 
         return windows_data
@@ -61,19 +59,16 @@ class Cluster_Data(Data):
     def candle_stick(self):
         candle_data = self.tmp.copy()
 
-        upper = []; lower = []; body= []; colors= []     #upper lenght,lower length,body length,body color
-        for index in range(self.start_idx, self.end_idx):
-            body.append([np.abs(self.close[index] - self.open[index])])
-            if self.close[index] - self.open[index] > 0: 
-                upper.append([self.high[index] - self.close[index]])
-                lower.append([self.open[index] - self.low[index]])
-                colors.append(0.0)        #body color is red
-            else : 
-                upper.append([self.high[index] - self.open[index]])
-                lower.append([self.close[index] - self.low[index]])
-                colors.append(1.0)                                             #body color is green
+        c = self.close[self.start_idx - self.window_size+1:self.end_idx]
+        o = self.open[self.start_idx - self.window_size+1:self.end_idx]
+        h = self.high[self.start_idx - self.window_size+1:self.end_idx]
+        l = self.low[self.start_idx - self.window_size+1:self.end_idx]
 
-
+        body = np.abs(c - o)
+        is_positive = (c - o) > 0
+        upper = np.where(is_positive, h - c, h - o)
+        lower = np.where(is_positive, o - l, c - l)
+        colors = np.where(is_positive, 0.0, 1.0)
         candle_data['upper'] = self.window_scaler(upper); candle_data['lower'] = self.window_scaler(lower)
         candle_data['body'] = self.window_scaler(body); self.data['color'] = colors
         
@@ -278,17 +273,16 @@ class Cluster_Data(Data):
             self.data[f"momentum_center {i + 1}"] = lists[i]
 
     def cluster(self,data):
-        data = data[self.start_idx:self.end_idx]
+        data = data[self.start_idx-self.window_size+1:self.end_idx]
         data = self.window_scaler(data)
         return data
 
     def window_scaler(self, data):
-        data = np.array(data)
-        scaler_data = []; s_index = 0; e_index = 0
-        while(e_index != len(data)):
-            e_index = s_index+self.feature_window
-            if e_index > len(data): e_index = len(data)
-            temp = self.scaler.fit_transform(data.reshape(-1,1)[s_index:e_index]).reshape(1,-1)[0]
-            s_index += self.feature_window
-            scaler_data.extend(temp)
-        return scaler_data
+        data_series = pd.Series(np.array(data).flatten())
+
+        rolling_mean = data_series.rolling(window=self.window_size, min_periods=1).mean()
+        rolling_std = data_series.rolling(window=self.window_size, min_periods=1).std()
+        rolling_std = rolling_std.replace(0, 1e-10).fillna(1e-10)
+        scaled_data = (data_series - rolling_mean) / rolling_std
+
+        return scaled_data.tolist()
