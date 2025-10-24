@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import sys
 import os
 import pandas as pd
-from phase import phase2date
+from phase import phase2quarter
 import matplotlib.dates as mdates
 from matplotlib.dates import date2num, MonthLocator
 

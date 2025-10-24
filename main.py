@@ -100,8 +100,7 @@ if __name__ == '__main__':
 		train_chart_data, test_chart_data, training_data, test_data = data_manager.load_data(
 			os.path.join(parameters.BASE_DIR,
 			'data/{}/'.format(args.ver)), row.stock_codes, feature_model_path,
-			row.train_start, row.train_end, row.test_start, row.test_end, window_size=args.window_size, feature_window=args.feature_window,
-			algorithm=args.algorithm, train=not args.test)
+			row.train_start, row.train_end, row.test_start, row.test_end, window_size=args.window_size, train=not args.test)
 		# 공통 파라미터 설정
 		common_params = {'delayed_reward_threshold': args.delayed_reward_threshold,
 					'balance' : args.balance}
