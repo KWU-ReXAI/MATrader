@@ -3,6 +3,7 @@ import re
 import glob
 import pandas as pd
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from parameters import parameters
 
 def phase2quarter(s2fe):
@@ -21,8 +22,9 @@ def phase2quarter(s2fe):
 				quarter = row.iloc[1]
 				test_start = row.iloc[2]
 				test_end = row.iloc[3]
-				train_start = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1500)).strftime('%Y-%m-%d')
-				train_end = (datetime.strptime(test_start, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+				test_start_dt = datetime.strptime(test_start, '%Y-%m-%d')
+				train_start = (test_start_dt - relativedelta(years=3)).strftime('%Y-%m-%d')
+				train_end = (test_start_dt - timedelta(days=1)).strftime('%Y-%m-%d')
 
 				stocks = row.iloc[4:].tolist()
 				stocks = [str(int(stock)).zfill(6) for stock in stocks if pd.notna(stock)]

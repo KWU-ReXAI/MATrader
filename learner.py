@@ -13,8 +13,8 @@ from parameters import parameters
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 lock = threading.Lock()
-random.seed(42)
-np.random.seed(42)
+# random.seed(42)
+# np.random.seed(42)
 
 from network import MultiAgentTransformer
 from utils.memory import PPOReplayBuffer
@@ -45,13 +45,13 @@ class MATagent:
 		self.test = test
 		self.act_dim = parameters.NUM_ACTIONS
 		self.n_agents = num_of_stock
-		self.inp_dim = self.test_data.shape[2] #학습 데이터 크기
+		self.inp_dim = self.test_data.shape[-1] #학습 데이터 크기
 		self.lr = lr
 		self.balance = balance
 		self.delayed_reward_threshold = delayed_reward_threshold
 		self.batch_size = parameters.BATCH_SIZE
 		# Create networks
-		self.network = MultiAgentTransformer(self.test_data.shape[2], parameters.NUM_ACTIONS, num_of_stock, 1, 64, 1, lr=lr)
+		self.network = MultiAgentTransformer(self.test_data.shape[-1], parameters.NUM_ACTIONS, num_of_stock, 1, 64, 1, lr=lr)
 		if test and os.path.exists(load_network_path+'.pt'):
 			self.network.load_model(load_network_path)
 		# 로그 등 출력 경로
