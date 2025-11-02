@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import itertools
 from feature import Cluster_Data
 from tqdm import tqdm
 
@@ -48,6 +49,37 @@ def load_data(fpath, stocks:list, fmpath,train_start, train_end, test_start, tes
         train_chart_data = None
         train_data = None
     return train_chart_data, test_chart_data, train_data, test_data
+
+def buy_hold_pv(fpath, stocks:list, start, end, phase, quarter):
+    dfs = []
+    for stock in stocks:
+        path = f'{fpath}{stock}.csv'
+        data = pd.read_csv(path, thousands=',',
+                           converters={'date': lambda x: str(x)})
+        data.columns = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+        # 기간 필터링
+        data.replace(0, pd.NA, inplace=True)
+        dfs.append(data)
+    rows_to_keep = ~pd.concat([df.isna().any(axis=1) for df in dfs], axis=1).any(axis=1)
+    df_stocks = [df[rows_to_keep] for df in dfs]
+    df_stocks = [df.reset_index(drop=True) for df in df_stocks]
+
+    sliced_arrays = [
+        df.loc[(df['date'] >= start) & (df['date'] <= end)]['close']
+        for df in df_stocks
+    ]
+    series_pv = sum(sliced_arrays)
+    series_reward = series_pv.pct_change().fillna(0)
+    memory_pv = series_pv.to_numpy()
+    memory_reward = series_reward.to_numpy()
+
+    rr = memory_pv[-1] / (memory_pv[0] + 1e-10) - 1
+    sr = 0 if len(memory_reward) <= 1 else np.mean(memory_reward) * np.sqrt(len(memory_reward)) / (
+                np.std(memory_reward) + 1e-10)
+    mdd = 0 if len(memory_pv) <= 1 else max((peak_pv - pv) / peak_pv for peak_pv, pv \
+                                            in zip(itertools.accumulate(memory_pv, max), memory_pv))
+    df = pd.DataFrame({'phase': [phase], 'quarter': [quarter], 'rr': [rr], 'sr': [sr], 'mdd': [mdd]})
+    return df
 
 if __name__ == '__main__':
     load_data('./data/ROK/', ['000150', '000210', '003200'], './', '2016-01-01', '2020-06-30', '2020-07-01', '2021-06-30', window_size=10)

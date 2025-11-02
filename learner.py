@@ -191,7 +191,7 @@ class MATagent:
 															  trader.num_hold,
 															  trader.num_stocks, trader.portfolio_value,
 															  sr, mdd))
-		df = pd.DataFrame({'quarter': [self.quarter], 'rr': [rr], 'sr': [sr], 'mdd': [mdd]})
+		df = pd.DataFrame({'phase': [self.phase], 'quarter': [self.quarter], 'rr': [rr], 'sr': [sr], 'mdd': [mdd]})
 		environment.plt_result(plt_path, self.stock_codes)
 
 		return df
