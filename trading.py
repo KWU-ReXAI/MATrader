@@ -25,10 +25,6 @@ class Trader:
 		self.num_sell = 0  # 매도 횟수
 		self.num_hold = 0  # 홀딩 횟수
 
-		# 샤프지수 계산을 위한 최근 수익률 저장소
-		self.reward_window = 20
-		self.reward_history = deque(maxlen=self.reward_window)
-
 	def reset(self):
 		self.balance = self.initial_balance
 		self.num_stocks = np.zeros(self.n_agents, dtype=np.int64)
@@ -38,46 +34,18 @@ class Trader:
 		self.num_sell = 0
 		self.num_hold = 0
 
-	def map_action(self, action):
-		# 매매 타입 가지수(매수, 매도, 홀딩)에 따른 범위의 경계값 생성
-		# 예: action이 -3~3이라면 points = [-3, -1, 1, 3]
-		points = np.linspace(-1 * self.act_dim, self.act_dim, self.act_dim + 1)
-		points[-1] += 1e-10 # 경계값 예외 위함
-		# values: 범위에 속하는 위치
-		# 예: -2.8 -> [-3, -1] 사이 => 1번째 범위
-		values = np.digitize(action, points)
-		values -= 1
-		return values
-
-	def validate_action(self, action, buy_index, sell_index):
-		if len(buy_index) > 0:
-			# 사는 종목들이 각각 적어도 1주를 살 수 있는지 확인
-			for index in buy_index:
-				if self.balance // self.n_agents < self.environment.curr_price()[index]:
-					action[index] = parameters.ACTION_HOLD
-		if len(sell_index) > 0:
-			# 주식 잔고가 있는지 확인
-			for index in sell_index:
-				if self.num_stocks[index] <= 0:
-					action[index] = parameters.ACTION_HOLD
-		return action
-
 	def act(self, action, stock_codes, f, recode):
-		# action = self.map_action(action)
-		buy_index = np.where(action == parameters.ACTION_BUY)[0]
-		sell_index = np.where(action == parameters.ACTION_SELL)[0]
-		action = self.validate_action(action, buy_index, sell_index)
+		# 매수를 원하는 주식들
+		buy_count = np.sum(action == parameters.ACTION_BUY)
+		cash = self.balance // buy_count if buy_count > 0 else 0
 
 		# 환경에서 가격 얻기
 		date = self.environment.get_date()
 		curr_prices = self.environment.curr_price()
 
-		# 즉시 보상 초기화
-		#current_portfolio = self.balance + curr_price * self.num_stocks * (1- parameters.TRADING_TAX)
-		#if (current_portfolio - self.prev_protfolio_value) / self.prev_protfolio_value >= self.delayed_reward_threshold and self.num_stocks > 0 : action = parameters.ACTION_SELL
 		for stock, stock_action in enumerate(action):
 			curr_price = curr_prices[stock]
-			trading_unit = (self.balance // self.n_agents) // curr_price * (1 + parameters.TRADING_CHARGE)
+			trading_unit = cash // (curr_price * (1 + parameters.TRADING_CHARGE))
 			# 매수
 			if stock_action == parameters.ACTION_BUY and trading_unit > 0:
 				# 매수할 단위를 판단
@@ -105,19 +73,7 @@ class Trader:
 		next_prices = self.environment.next_price()
 		future_pv = self.balance + \
 							   np.sum(next_prices * self.num_stocks * (1 - parameters.TRADING_TAX - parameters.TRADING_CHARGE))
-		future_reward = (future_pv - self.portfolio_value)/self.portfolio_value
 		future_log_reward = np.log(future_pv) - np.log(self.portfolio_value)
-		######### SR, sortino ratio 계산 #########
-		self.reward_history.append(future_reward)
-		returns = np.array(self.reward_history)
-		downside_returns = returns[returns < 0]
-
-		stddev = np.std(returns) + 1e-10 if len(returns) > 0 else 0
-		down_stddev = np.std(downside_returns) + 1e-10 if len(downside_returns) > 0 else 1e-10
-
-		sharpe_ratio = np.mean(returns) / stddev
-		sortino_ratio = np.mean(returns) / down_stddev
-		##########################################
 		if recode:
 			for idx, curr_price in enumerate(curr_prices):
 				f.write(str(date) +"," + str(stock_codes[idx]).zfill(6) + "," + str(curr_price) +"," + str(action[idx]) +","\
@@ -125,4 +81,4 @@ class Trader:
 					
 		self.environment.idx += 1
 		
-		return reward, future_reward
+		return reward, future_log_reward
