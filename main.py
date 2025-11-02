@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
 	# --- 7. 그래프 그리기 (1x3 서브플롯) ---
 	fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 6))
-	colors = ['#78b0e2', '#dd3333']  # Model (Blue), B&H (Red)
+	colors = ['#dd3333', '#78b0e2']  # Model (Red), B&H (Blue)
 
 	# 플롯 1: 연간 환산 수익률
 	df_plot_rr.plot(kind='bar', ax=axes[0], color=colors, rot=0)
