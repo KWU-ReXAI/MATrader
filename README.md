@@ -14,7 +14,7 @@ python main.py --stock_dir [S2FE 결과 폴더 이름] --output_name [결과 폴
 
 > **참고**: 세부 하이퍼파라미터는 `main.py` 파일을 참조하세요.
 
-> **참고**: 종목 리스트는 'data/S2FE/result'에 저장하세요.
+> **참고**: 종목 리스트는 'data/S2FE/[S2FE 결과 폴더 이름]'에 저장하세요.
 
 
 ### 테스트 (Testing)
