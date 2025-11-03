@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
 	plt.rcParams['font.family'] = 'Malgun Gothic'
 	plt.rcParams['axes.unicode_minus'] = False
-	set_seed(SEED)
+	# set_seed(SEED)
 	output_path = os.path.join(parameters.BASE_DIR,
 		'output/{}'.format(args.output_name))
 	if not os.path.isdir(output_path): os.makedirs(output_path)
