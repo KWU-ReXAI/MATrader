@@ -1,4 +1,4 @@
-# MAT_trading 🚀
+# MATrader(Multi-Agent Transformer Trader) 🚀
 
 ## 실행 방법
 
